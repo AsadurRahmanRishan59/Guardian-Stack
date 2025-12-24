@@ -1,0 +1,48 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: guardianstack
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/guardian_stack
+    username: guardian_app_user
+    password: ${DB_PASSWORD:SecurePassword123} # Uses Env Var or default
+    driver-class-name: org.postgresql.Driver
+
+  # JPA / Hibernate Settings
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: public
+
+  # Email Configuration (Ready for Phase 4)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# Custom JWT Settings
+application:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      expiration: 86400000 # 1 day in milliseconds
+      refresh-token:
+        expiration: 604800000 # 7 days
