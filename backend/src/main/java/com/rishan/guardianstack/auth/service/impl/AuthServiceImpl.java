@@ -11,10 +11,8 @@ import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.service.AuthService;
-import com.rishan.guardianstack.core.exception.BadCredentialsException;
-import com.rishan.guardianstack.core.exception.JwtGenerationException;
-import com.rishan.guardianstack.core.exception.MultipleFieldValidationException;
-import com.rishan.guardianstack.core.exception.UserDetailsNotFoundException;
+import com.rishan.guardianstack.auth.service.MailService;
+import com.rishan.guardianstack.core.exception.*;
 import com.rishan.guardianstack.core.util.EmailPolicyValidator;
 import com.rishan.guardianstack.core.util.JwtUtils;
 import com.rishan.guardianstack.core.util.PasswordPolicyValidator;
@@ -27,6 +25,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
@@ -41,6 +40,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicyValidator passwordPolicyValidator;
     private final EmailPolicyValidator emailPolicyValidator;
+    private final VerificationServiceImpl verificationService;
+    private final MailService mailService;
 
     public LoginResponseDTO registerPublicUser(SignUpRequestDTO request) {
 
@@ -67,13 +68,70 @@ public class AuthServiceImpl implements AuthService {
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
                 .roles(Collections.singleton(userRole))
-                .enabled(true) // Set to false later if implementing Email OTP
+                .enabled(false)
                 .signUpMethod(SignUpMethod.EMAIL)
                 .build();
         userRepository.save(user);
 
-        // 5. Automatic Sign-in after successful registration
-        return signin(new LoginRequestDTO(request.email(), request.password()));
+        // 5. Generate and Send OTP
+        String otp = verificationService.createToken(user);
+        mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), otp);
+
+        // Return a response WITHOUT a JWT, signaling the frontend to show the OTP screen
+        return new LoginResponseDTO(
+                null, // No JWT yet!
+                new UserResponse(
+                        user.getUserId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.isEnabled(),
+                        List.of("ROLE_USER")
+                )
+        );
+    }
+
+    @Override
+    @Transactional
+    public LoginResponseDTO verifyAndLogin(String email, String otp) {
+        // 1. Validate Email Format/Policy first
+        validateEmailOnly(email);
+
+        // 2. Logic to verify the token
+        User user = verificationService.verifyToken(email, otp);
+
+        // 3. Logic to prepare the Security Context / UserDetails
+        UserDetailsImpl userDetails = UserDetailsImpl.build(user);
+
+        // 4. Logic to generate the security token
+        String jwtToken = jwtUtils.generateJwtTokenFromUsername(userDetails);
+
+        return new LoginResponseDTO(
+                jwtToken,
+                new UserResponse(
+                        user.getUserId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.isEnabled(),
+                        user.getRoles().stream().map(r -> r.getRoleName().name()).toList()
+                )
+        );
+    }
+
+    @Override
+    @Transactional
+    public void resendVerificationCode(String email) {
+        // 1. Validate Email Format/Policy first
+        validateEmailOnly(email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email, "email"));
+
+        if (user.isEnabled()) {
+            throw new VerificationException("This account is already verified.");
+        }
+
+        String newOtp = verificationService.createToken(user);
+        mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newOtp);
     }
 
     @Override
@@ -133,5 +191,16 @@ public class AuthServiceImpl implements AuthService {
             fieldErrors.put("email", String.join(", ", emailErrors));
         }
     }
-}
 
+    /**
+     * Helper method to validate email using existing policy
+     */
+    private void validateEmailOnly(String email) {
+        List<String> emailErrors = emailPolicyValidator.validate(email);
+        if (!emailErrors.isEmpty()) {
+            Map<String, String> errors = new HashMap<>();
+            errors.put("email", String.join(", ", emailErrors));
+            throw new MultipleFieldValidationException(errors);
+        }
+    }
+}

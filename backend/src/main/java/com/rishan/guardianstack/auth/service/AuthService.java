@@ -9,4 +9,6 @@ public interface AuthService {
 
     LoginResponseDTO signin(LoginRequestDTO loginRequestDTO);
 
+    LoginResponseDTO verifyAndLogin(String email, String otp);
+    void resendVerificationCode(String email);
 }

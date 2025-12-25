@@ -16,7 +16,7 @@ public class EmailPolicyValidator {
         List<String> errors = new ArrayList<>();
 
         if (email == null || email.isBlank()) {
-            return errors; // Handled by DTO if required, or ignored if optional
+            return errors; // Handled by DTO if required or ignored if optional
         }
 
         // 1. Basic Format

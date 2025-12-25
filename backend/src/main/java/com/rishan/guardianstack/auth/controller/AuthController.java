@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 @Validated
 @RequiredArgsConstructor
 public class AuthController {
@@ -31,11 +31,27 @@ public class AuthController {
 
     @PostMapping("/public/signup")
     public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(@Valid @RequestBody SignUpRequestDTO signUpRequest) {
+        LoginResponseDTO response = authService.registerPublicUser(signUpRequest);
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
-                "User registered successfully. You can now log in.",
-                authService.registerPublicUser(signUpRequest),
+                "Registration successful! Please check your email for a 6-digit verification code to activate your account.",
+                response,
+                LocalDateTime.now()
+        ));
+    }
+
+    @PostMapping("/public/verify-otp")
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> verifyOtp(
+            @RequestParam String email,
+            @RequestParam String otp) {
+
+        LoginResponseDTO response = authService.verifyAndLogin(email, otp);
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Email verified and logged in successfully!",
+                response,
                 LocalDateTime.now()
         ));
     }
@@ -45,22 +61,30 @@ public class AuthController {
         LoginResponseDTO response = authService.signin(loginRequestDTO);
         return ResponseEntity.status(HttpStatus.OK).body(
                 new ApiResponse<>(
-                        true, "Welcome " + response.userResponse().username() + " !", authService.signin(loginRequestDTO),
+                        true, "Welcome " + response.userResponse().username() + " !", response,
                         LocalDateTime.now()
 
                 ));
     }
 
+    @PostMapping("/public/resend-otp")
+    public ResponseEntity<ApiResponse<String>> resendOtp(@RequestParam String email) {
+        authService.resendVerificationCode(email);
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "A new verification code has been sent to your email.",
+                "OTP_RESENT",
+                LocalDateTime.now()
+        ));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-
 
         if (userDetails == null) {
             throw new UserDetailsNotFoundException("User details not found");
         }
-
         UserDetailsImpl user = (UserDetailsImpl) userDetails;
-
         return ResponseEntity.status(HttpStatus.OK).body(
                 new ApiResponse<>(
                         true, "User details retrieved", new UserResponse(

@@ -4,6 +4,8 @@ import com.rishan.guardianstack.core.response.ApiErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,7 +25,7 @@ public class GlobalExceptionHandler {
                 false,
                 ex.getMessage(),
                 HttpStatus.UNAUTHORIZED.value(),
-                null,
+                "AUTH_FAILURE",
                 LocalDateTime.now()
         );
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
@@ -140,6 +142,70 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
+    // --- Verification Related Exceptions ---
+
+    @ExceptionHandler(VerificationException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleVerificationException(VerificationException ex) {
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                ex.getMessage(),
+                HttpStatus.BAD_REQUEST.value(),
+                "VERIFICATION_ERROR",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(TokenExpiredException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleTokenExpired(TokenExpiredException ex) {
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                "The 6-digit code has expired. Please request a new one.",
+                HttpStatus.GONE.value(), // 410 Gone is semantically perfect for expired tokens
+                "TOKEN_EXPIRED",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(response, HttpStatus.GONE);
+    }
+
+    @ExceptionHandler(TokenAlreadyUsedException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleTokenAlreadyUsed(TokenAlreadyUsedException ex) {
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                ex.getMessage(),
+                HttpStatus.CONFLICT.value(),
+                "TOKEN_ALREADY_USED",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    // --- Security Status Exceptions ---
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleDisabledException(DisabledException ex) {
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                "Your account is not verified yet. Please check your email for the OTP.",
+                HttpStatus.FORBIDDEN.value(),
+                "ACCOUNT_DISABLED",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleLockedException(LockedException ex) {
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                "Your account has been locked due to too many failed attempts.",
+                HttpStatus.FORBIDDEN.value(),
+                "ACCOUNT_LOCKED",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
+
     // Optional fallback for any unexpected exceptions
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse<Object>> handleAllExceptions(Exception ex) {
@@ -154,4 +220,6 @@ public class GlobalExceptionHandler {
         );
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+
 }

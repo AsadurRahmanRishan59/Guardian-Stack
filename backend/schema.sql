@@ -18,9 +18,22 @@ $$
     END
 $$;
 
--- Grant Permissions
-GRANT CONNECT ON DATABASE guardian_stack TO guardian_app_user;
-GRANT USAGE ON SCHEMA public TO guardian_app_user;
+-- 1. First, revoke any broad permissions to start from a clean slate
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM guardian_app_user;
+
+-- 2. GS_USERS: No DELETE allowed
+GRANT SELECT, INSERT, UPDATE ON TABLE public.gs_users TO guardian_app_user;
+GRANT USAGE, SELECT ON SEQUENCE public.gs_users_user_id_seq TO guardian_app_user;
+
+-- 3. GS_VERIFICATION_TOKENS: Full access (app needs to delete expired tokens)
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gs_verification_tokens TO guardian_app_user;
+GRANT USAGE, SELECT, UPDATE ON SEQUENCE public.gs_verification_tokens_token_id_seq TO guardian_app_user;
+
+-- 4. GS_ROLES: Read-only (The app usually only needs to assign roles, not change them)
+GRANT SELECT ON TABLE public.gs_roles TO guardian_app_user;
+
+-- 5. GS_USER_ROLES (Join Table): Full access to link/unlink roles
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gs_user_roles TO guardian_app_user;
 
 -- 2. TABLES: Identity Management
 -- --------------------------------------------------------------------------
@@ -42,7 +55,7 @@ COMMENT ON TABLE public.gs_roles IS 'Standardized Spring Security roles for RBAC
 CREATE TABLE IF NOT EXISTS public.gs_users
 (
     user_id                 BIGSERIAL PRIMARY KEY,
-    username                VARCHAR(255) NOT NULL,            -- For display purposes
+    username                VARCHAR(255) NOT NULL,        -- For display purposes
     email                   VARCHAR(50)  NOT NULL UNIQUE, -- Primary login identifier
     password                VARCHAR(120) NOT NULL,        -- BCrypt Hash
 
@@ -120,11 +133,15 @@ CREATE TABLE IF NOT EXISTS public.gs_verification_tokens
 
     -- Expiry Logic
     expiry_date  TIMESTAMP   NOT NULL,
-    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     confirmed_at TIMESTAMP   NULL,     -- When the user actually verified it
+    created_at   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP   NULL,
+    created_by   VARCHAR(50) NULL,
+    updated_by   VARCHAR(50) NULL,
+    version      BIGINT      NOT NULL DEFAULT 0,
 
     CONSTRAINT fk_token_user FOREIGN KEY (user_id) REFERENCES public.gs_users (user_id) ON DELETE CASCADE
 );
 
--- Index for fast lookup when user submits the code
+-- Index for fast lookup when the user submits the code
 CREATE INDEX IF NOT EXISTS idx_gs_token_lookup ON public.gs_verification_tokens (token, user_id);
