@@ -1,7 +1,7 @@
 package com.rishan.guardianstack.core.config;
 
-import com.rishan.digitalinsurance.core.security.AuthEntryPointJwt;
-import com.rishan.digitalinsurance.core.security.AuthTokenFilter;
+import com.rishan.guardianstack.core.security.AuthEntryPointJwt;
+import com.rishan.guardianstack.core.security.AuthTokenFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

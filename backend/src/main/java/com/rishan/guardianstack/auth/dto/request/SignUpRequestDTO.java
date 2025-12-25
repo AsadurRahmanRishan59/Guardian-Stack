@@ -18,12 +18,6 @@ public record SignUpRequestDTO(
         @Size(max = 50, message = "Email must not exceed 50 characters")
         String email,
 
-        @Pattern(
-                regexp = "^(?:\\+88|88)?(01[3-9]\\d{8})$",
-                message = "Invalid Bangladesh mobile number. Use 01XXXXXXXXX or +8801XXXXXXXXX"
-        )
-        String mobileNumber,
-
         @NotBlank(message = "Password is required")
         String password
 ) {

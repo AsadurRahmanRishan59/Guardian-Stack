@@ -11,11 +11,11 @@ DESCRIPTION: Core identity and access management (IAM) schema for
 -- Create a restricted user so the app doesn't run as a Superuser (Admin)
 DO
 $$
-BEGIN
+    BEGIN
         IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'guardian_app_user') THEN
             CREATE USER guardian_app_user WITH PASSWORD 'SecurePassword123';
-END IF;
-END
+        END IF;
+    END
 $$;
 
 -- Grant Permissions
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.gs_roles
     role_name   VARCHAR(50) NOT NULL UNIQUE,
     description VARCHAR(255),
     CONSTRAINT ck_role_name_format CHECK (role_name LIKE 'ROLE_%') -- Ensures standard Spring prefix
-    );
+);
 
 COMMENT ON TABLE public.gs_roles IS 'Standardized Spring Security roles for RBAC.';
 
@@ -42,7 +42,7 @@ COMMENT ON TABLE public.gs_roles IS 'Standardized Spring Security roles for RBAC
 CREATE TABLE IF NOT EXISTS public.gs_users
 (
     user_id                 BIGSERIAL PRIMARY KEY,
-    username                VARCHAR(20)  NOT NULL,        -- For display purposes
+    username                VARCHAR(255) NOT NULL,            -- For display purposes
     email                   VARCHAR(50)  NOT NULL UNIQUE, -- Primary login identifier
     password                VARCHAR(120) NOT NULL,        -- BCrypt Hash
 
@@ -65,10 +65,10 @@ CREATE TABLE IF NOT EXISTS public.gs_users
 
     -- Metadata
     sign_up_method          VARCHAR(50)  NOT NULL DEFAULT 'EMAIL'
-    );
+);
 
 COMMENT ON COLUMN public.gs_users.password IS 'BCrypt encoded string. Do not store plain text.';
-
+COMMENT ON COLUMN public.gs_users.username IS 'Stores the Full Name or Display Name. Optional during initial signup.';
 -- Table: gs_user_roles (Join Table)
 -- Handles Many-to-Many relationship between Users and Roles
 CREATE TABLE IF NOT EXISTS public.gs_user_roles
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.gs_user_roles
     PRIMARY KEY (user_id, role_id),
     CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES public.gs_users (user_id) ON DELETE CASCADE,
     CONSTRAINT fk_role FOREIGN KEY (role_id) REFERENCES public.gs_roles (role_id) ON DELETE CASCADE
-    );
+);
 
 -- 3. INDEXING: Optimization
 -- --------------------------------------------------------------------------
@@ -103,7 +103,7 @@ VALUES ('ROLE_MASTER_ADMIN', 'Full system access and master audit logs'),
        ('ROLE_ADMIN', 'Manage users, settings and general administration'),
        ('ROLE_EMPLOYEE', 'Internal staff processing insurance policies'),
        ('ROLE_USER', 'Public customer purchasing and viewing policies')
-    ON CONFLICT (role_name) DO NOTHING;
+ON CONFLICT (role_name) DO NOTHING;
 
 /* =============================================================================
 TABLE: gs_verification_tokens

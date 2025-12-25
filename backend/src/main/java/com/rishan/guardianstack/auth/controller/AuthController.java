@@ -1,13 +1,13 @@
 package com.rishan.guardianstack.auth.controller;
 
-import com.rishan.digitalinsurance.core.exception.UserDetailsNotFoundException;
-import com.rishan.digitalinsurance.core.response.ApiResponse;
-import com.rishan.digitalinsurance.modules.auth.dto.request.LoginRequestDTO;
-import com.rishan.digitalinsurance.modules.auth.dto.request.SignUpRequestDTO;
-import com.rishan.digitalinsurance.modules.auth.dto.response.LoginResponseDTO;
-import com.rishan.digitalinsurance.modules.auth.dto.response.UserResponse;
-import com.rishan.digitalinsurance.modules.auth.service.AuthService;
-import com.rishan.digitalinsurance.modules.auth.service.impl.UserDetailsImpl;
+import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
+import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
+import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
+import com.rishan.guardianstack.auth.dto.response.UserResponse;
+import com.rishan.guardianstack.auth.service.AuthService;
+import com.rishan.guardianstack.auth.service.impl.UserDetailsImpl;
+import com.rishan.guardianstack.core.exception.UserDetailsNotFoundException;
+import com.rishan.guardianstack.core.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -42,9 +42,10 @@ public class AuthController {
 
     @PostMapping("/public/login")
     public ResponseEntity<ApiResponse<LoginResponseDTO>> signin(@Valid @RequestBody LoginRequestDTO loginRequestDTO) {
+        LoginResponseDTO response = authService.signin(loginRequestDTO);
         return ResponseEntity.status(HttpStatus.OK).body(
                 new ApiResponse<>(
-                        true, "Welcome " + loginRequestDTO.username() + " !", authService.signin(loginRequestDTO),
+                        true, "Welcome " + response.userResponse().username() + " !", authService.signin(loginRequestDTO),
                         LocalDateTime.now()
 
                 ));

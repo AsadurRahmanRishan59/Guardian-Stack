@@ -1,6 +1,6 @@
 package com.rishan.guardianstack.core.exception;
 
-import com.rishan.digitalinsurance.core.response.ApiErrorResponse;
+import com.rishan.guardianstack.core.response.ApiErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

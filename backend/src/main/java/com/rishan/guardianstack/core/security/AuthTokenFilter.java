@@ -1,7 +1,7 @@
 package com.rishan.guardianstack.core.security;
 
-import com.rishan.digitalinsurance.core.util.JwtUtils;
-import com.rishan.digitalinsurance.modules.auth.service.impl.UserDetailsServiceImpl;
+import com.rishan.guardianstack.auth.service.impl.UserDetailsServiceImpl;
+import com.rishan.guardianstack.core.util.JwtUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

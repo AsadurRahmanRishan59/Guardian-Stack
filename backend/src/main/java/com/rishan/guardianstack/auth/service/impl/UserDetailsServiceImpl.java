@@ -1,7 +1,7 @@
 package com.rishan.guardianstack.auth.service.impl;
 
-import com.rishan.digitalinsurance.modules.auth.model.User;
-import com.rishan.digitalinsurance.modules.auth.repository.UserRepository;
+import com.rishan.guardianstack.auth.model.User;
+import com.rishan.guardianstack.auth.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
@@ -19,11 +19,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @NonNull
     @Transactional
-    public UserDetails loadUserByUsername(@NonNull String identifier) throws UsernameNotFoundException {
-        // We search the identifier against both columns
-        User user = userRepository.findByEmailOrMobileNumber(identifier, identifier)
-                .or(() -> userRepository.findByUsername(identifier)) // Also check username
-                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with identifier: " + identifier));
+    public UserDetails loadUserByUsername(@NonNull String email) throws UsernameNotFoundException {
+        // Now exclusively using email as the login identifier
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with email: " + email));
 
         return UserDetailsImpl.build(user);
     }

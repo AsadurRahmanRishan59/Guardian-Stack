@@ -1,7 +1,7 @@
 package com.rishan.guardianstack.auth.repository;
 
-import com.rishan.digitalinsurance.modules.auth.model.AppRole;
-import com.rishan.digitalinsurance.modules.auth.model.Role;
+import com.rishan.guardianstack.auth.model.AppRole;
+import com.rishan.guardianstack.auth.model.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

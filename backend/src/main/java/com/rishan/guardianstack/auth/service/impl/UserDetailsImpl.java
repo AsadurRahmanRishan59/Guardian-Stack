@@ -1,7 +1,7 @@
 package com.rishan.guardianstack.auth.service.impl;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.rishan.digitalinsurance.modules.auth.model.User;
+import com.rishan.guardianstack.auth.model.User;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.jspecify.annotations.NonNull;
@@ -26,7 +26,6 @@ public class UserDetailsImpl implements UserDetails {
     private final Long id;
     private final String username;
     private final String email;
-    private final String mobileNumber;
     @JsonIgnore
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
@@ -48,7 +47,6 @@ public class UserDetailsImpl implements UserDetails {
                 user.getUserId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getMobileNumber(),
                 user.getPassword(),
                 authorities,
                 user.isAccountNonLocked(),
