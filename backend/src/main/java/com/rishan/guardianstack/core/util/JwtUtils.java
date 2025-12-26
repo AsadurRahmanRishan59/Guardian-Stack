@@ -1,5 +1,6 @@
 package com.rishan.guardianstack.core.util;
 
+import com.rishan.guardianstack.auth.service.impl.UserDetailsImpl;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
@@ -36,17 +37,18 @@ public class JwtUtils {
         return null;
     }
 
-    public String generateJwtTokenFromUsername(UserDetails userDetails) {
-        String username = userDetails.getUsername();
+    public String generateJwtTokenFromEmail(UserDetails userDetails) {
+        UserDetailsImpl user = (UserDetailsImpl) userDetails;
+        String email = user.getEmail();
         return Jwts.builder()
-                .subject(username)
+                .subject(email)
                 .issuedAt(new Date())
                 .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(getJwtKey()) // No cast needed if getJwtKey returns SecretKey
                 .compact();
     }
 
-    public String getUsernameFromJwtToken(String token) {
+    public String getEmailFromJwtToken(String token) {
         return Jwts.parser()
                 .verifyWith(getJwtKey())
                 .build()

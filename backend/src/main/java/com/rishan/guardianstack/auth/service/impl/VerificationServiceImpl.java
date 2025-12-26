@@ -74,4 +74,25 @@ public class VerificationServiceImpl implements VerificationService {
 
         return user;
     }
+
+    @Override
+    @Transactional
+    public String createPasswordResetToken(User user) {
+        // 1. Delete any old reset tokens for this user
+        tokenRepository.deleteByUserAndTokenType(user, "PASSWORD_RESET");
+
+        // 2. Generate 6-digit OTP
+        String otp = String.format("%06d", new SecureRandom().nextInt(1000000));
+
+        // 3. Save a new token
+        VerificationToken resetToken = VerificationToken.builder()
+                .token(otp)
+                .user(user)
+                .tokenType("PASSWORD_RESET")
+                .expiryDate(LocalDateTime.now().plusMinutes(10)) // Shorter expiry for security
+                .build();
+
+        tokenRepository.save(resetToken);
+        return otp;
+    }
 }

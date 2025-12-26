@@ -30,9 +30,13 @@ public class User extends BaseEntity {
     @Column(nullable = false, length = 120)
     private String password;
 
+    @Builder.Default
     private boolean accountNonLocked = true;
+    @Builder.Default
     private boolean accountNonExpired = true;
+    @Builder.Default
     private boolean credentialsNonExpired = true;
+    @Builder.Default
     private boolean enabled = true;
 
     @Column(name = "credentials_expiry_date")

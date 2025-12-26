@@ -1,6 +1,7 @@
 package com.rishan.guardianstack.auth.controller;
 
 import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
+import com.rishan.guardianstack.auth.dto.request.PasswordResetRequest;
 import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
 import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
 import com.rishan.guardianstack.auth.dto.response.UserResponse;
@@ -56,7 +57,7 @@ public class AuthController {
         ));
     }
 
-    @PostMapping("/public/login")
+    @PostMapping("/public/signin")
     public ResponseEntity<ApiResponse<LoginResponseDTO>> signin(@Valid @RequestBody LoginRequestDTO loginRequestDTO) {
         LoginResponseDTO response = authService.signin(loginRequestDTO);
         return ResponseEntity.status(HttpStatus.OK).body(
@@ -76,6 +77,18 @@ public class AuthController {
                 "OTP_RESENT",
                 LocalDateTime.now()
         ));
+    }
+
+    @PostMapping("/public/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@RequestParam String email) {
+        authService.initiatePasswordReset(email);
+        return ResponseEntity.ok(new ApiResponse<>(true, "Reset code sent to your email.", null, LocalDateTime.now()));
+    }
+
+    @PostMapping("/public/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(new ApiResponse<>(true, "Password has been reset successfully.", null, LocalDateTime.now()));
     }
 
     @GetMapping("/me")

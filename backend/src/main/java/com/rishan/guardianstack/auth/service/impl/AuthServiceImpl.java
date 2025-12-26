@@ -1,15 +1,14 @@
 package com.rishan.guardianstack.auth.service.impl;
 
 import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
+import com.rishan.guardianstack.auth.dto.request.PasswordResetRequest;
 import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
 import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
 import com.rishan.guardianstack.auth.dto.response.UserResponse;
-import com.rishan.guardianstack.auth.model.AppRole;
-import com.rishan.guardianstack.auth.model.Role;
-import com.rishan.guardianstack.auth.model.SignUpMethod;
-import com.rishan.guardianstack.auth.model.User;
+import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
+import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
 import com.rishan.guardianstack.auth.service.AuthService;
 import com.rishan.guardianstack.auth.service.MailService;
 import com.rishan.guardianstack.core.exception.*;
@@ -27,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -42,13 +42,14 @@ public class AuthServiceImpl implements AuthService {
     private final EmailPolicyValidator emailPolicyValidator;
     private final VerificationServiceImpl verificationService;
     private final MailService mailService;
+    private final VerificationTokenRepository verificationTokenRepository;
 
     public LoginResponseDTO registerPublicUser(SignUpRequestDTO request) {
 
         Map<String, String> fieldErrors = new HashMap<>();
 
         // 1. Validate Password and Email format
-        validateSignUpRequest(request, fieldErrors);
+        validateSignUpRequest(request.email(), request.password(), fieldErrors);
 
         // 2. Uniqueness Check (ONLY Email)
         if (userRepository.existsByEmail(request.email())) {
@@ -103,7 +104,7 @@ public class AuthServiceImpl implements AuthService {
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
 
         // 4. Logic to generate the security token
-        String jwtToken = jwtUtils.generateJwtTokenFromUsername(userDetails);
+        String jwtToken = jwtUtils.generateJwtTokenFromEmail(userDetails);
 
         return new LoginResponseDTO(
                 jwtToken,
@@ -135,6 +136,51 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    public void initiatePasswordReset(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        String otp = verificationService.createPasswordResetToken(user);
+
+        mailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), otp);
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(PasswordResetRequest request) {
+
+        Map<String, String> fieldErrors = new HashMap<>();
+
+        // 1. Validate Password and Email format
+        validateSignUpRequest(request.email(), request.newPassword(), fieldErrors);
+
+        // 1. Find the token and verify it's for Password Reset
+        VerificationToken verificationToken = verificationTokenRepository
+                .findByTokenAndTokenType(request.otp(), "PASSWORD_RESET")
+                .orElseThrow(() -> new InvalidTokenException("Invalid reset code"));
+
+        // 2. Security Check: Does the token belong to the email provided?
+        if (!verificationToken.getUser().getEmail().equals(request.email())) {
+            throw new InvalidTokenException("This code was not issued for this email address");
+        }
+
+        // 3. Expiry Check
+        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            verificationTokenRepository.delete(verificationToken);
+            throw new InvalidTokenException("Reset code has expired. Please request a new one.");
+        }
+
+
+        // 4. Update Password
+        User user = verificationToken.getUser();
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+
+        // 5. Cleanup: Delete the token so it can't be reused
+        verificationTokenRepository.delete(verificationToken);
+    }
+
+    @Override
     public @NonNull LoginResponseDTO signin(@NonNull LoginRequestDTO loginRequestDTO) {
 
         Authentication authentication;
@@ -158,7 +204,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // JWT generation check
-        String jwtToken = Optional.ofNullable(jwtUtils.generateJwtTokenFromUsername(userDetails))
+        String jwtToken = Optional.ofNullable(jwtUtils.generateJwtTokenFromEmail(userDetails))
                 .orElseThrow(() -> new JwtGenerationException("Failed to generate JWT token"));
 
         return new LoginResponseDTO(
@@ -178,15 +224,15 @@ public class AuthServiceImpl implements AuthService {
     /**
      * Validate SignUpRequestDTO
      */
-    private void validateSignUpRequest(SignUpRequestDTO request, Map<String, String> fieldErrors) {
+    private void validateSignUpRequest(String email, String password, Map<String, String> fieldErrors) {
         // Password validation
-        List<String> passwordErrors = passwordPolicyValidator.validate(request.password(), request.email());
+        List<String> passwordErrors = passwordPolicyValidator.validate(password, email);
         if (!passwordErrors.isEmpty()) {
             fieldErrors.put("password", String.join(", ", passwordErrors));
         }
 
         // Email validation
-        List<String> emailErrors = emailPolicyValidator.validate(request.email());
+        List<String> emailErrors = emailPolicyValidator.validate(email);
         if (!emailErrors.isEmpty()) {
             fieldErrors.put("email", String.join(", ", emailErrors));
         }

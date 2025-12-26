@@ -156,6 +156,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleInvalidTokenException(InvalidTokenException ex) {
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                ex.getMessage(),
+                HttpStatus.BAD_REQUEST.value(),
+                "INVALID_TOKEN",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(TokenExpiredException.class)
     public ResponseEntity<ApiErrorResponse<Object>> handleTokenExpired(TokenExpiredException ex) {
         ApiErrorResponse<Object> response = new ApiErrorResponse<>(
