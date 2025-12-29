@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { handleServerError } from '@/lib/api/error-handling';
 import { getBackendUrl } from '@/lib/api.utils';
+import { encryptToken } from '@/lib/api/crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +26,8 @@ export async function POST(request: NextRequest) {
 
       // 1. Set the JWT (Secure, private)
       if (jwtToken) {
-        cookieStore.set('jwt_token', jwtToken, {
+        const encryptedJwt = encryptToken(jwtToken);
+        cookieStore.set('jwt_token', encryptedJwt, {
           httpOnly: true,
           // secure: true,
           sameSite: 'lax',

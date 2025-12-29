@@ -3,12 +3,17 @@ package com.rishan.guardianstack.auth.controller;
 import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
 import com.rishan.guardianstack.auth.dto.request.PasswordResetRequest;
 import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
+import com.rishan.guardianstack.auth.dto.request.TokenRefreshRequest;
 import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
+import com.rishan.guardianstack.auth.dto.response.TokenRefreshResponse;
 import com.rishan.guardianstack.auth.dto.response.UserResponse;
+import com.rishan.guardianstack.auth.model.RefreshToken;
 import com.rishan.guardianstack.auth.service.AuthService;
+import com.rishan.guardianstack.auth.service.RefreshTokenService;
 import com.rishan.guardianstack.auth.service.impl.UserDetailsImpl;
 import com.rishan.guardianstack.core.exception.UserDetailsNotFoundException;
 import com.rishan.guardianstack.core.response.ApiResponse;
+import com.rishan.guardianstack.core.util.JwtUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,6 +34,8 @@ import java.util.Optional;
 public class AuthController {
 
     private final AuthService authService;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtUtils jwtUtils;
 
     @PostMapping("/public/signup")
     public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(@Valid @RequestBody SignUpRequestDTO signUpRequest) {
@@ -114,5 +121,17 @@ public class AuthController {
 
                 ));
 
+    }
+
+    @PostMapping("/public/refresh")
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
+        LoginResponseDTO response = authService.refreshAccessToken(request);
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Token refreshed successfully",
+                response,
+                LocalDateTime.now()
+        ));
     }
 }

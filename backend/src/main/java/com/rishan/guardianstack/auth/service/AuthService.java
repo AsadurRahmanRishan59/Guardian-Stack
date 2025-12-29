@@ -3,6 +3,7 @@ package com.rishan.guardianstack.auth.service;
 import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
 import com.rishan.guardianstack.auth.dto.request.PasswordResetRequest;
 import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
+import com.rishan.guardianstack.auth.dto.request.TokenRefreshRequest;
 import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
 
 public interface AuthService {
@@ -15,5 +16,8 @@ public interface AuthService {
     void resendVerificationCode(String email);
 
     void initiatePasswordReset(String email);
+
     void resetPassword(PasswordResetRequest request);
+
+    LoginResponseDTO refreshAccessToken(TokenRefreshRequest request);
 }

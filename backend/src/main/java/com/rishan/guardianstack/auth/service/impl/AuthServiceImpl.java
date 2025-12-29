@@ -3,6 +3,7 @@ package com.rishan.guardianstack.auth.service.impl;
 import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
 import com.rishan.guardianstack.auth.dto.request.PasswordResetRequest;
 import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
+import com.rishan.guardianstack.auth.dto.request.TokenRefreshRequest;
 import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
 import com.rishan.guardianstack.auth.dto.response.UserResponse;
 import com.rishan.guardianstack.auth.model.*;
@@ -11,6 +12,7 @@ import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
 import com.rishan.guardianstack.auth.service.AuthService;
 import com.rishan.guardianstack.auth.service.MailService;
+import com.rishan.guardianstack.auth.service.RefreshTokenService;
 import com.rishan.guardianstack.core.exception.*;
 import com.rishan.guardianstack.core.util.EmailPolicyValidator;
 import com.rishan.guardianstack.core.util.JwtUtils;
@@ -43,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final VerificationServiceImpl verificationService;
     private final MailService mailService;
     private final VerificationTokenRepository verificationTokenRepository;
+    private final RefreshTokenService refreshTokenService;
 
     public LoginResponseDTO registerPublicUser(SignUpRequestDTO request) {
 
@@ -81,6 +84,7 @@ public class AuthServiceImpl implements AuthService {
         // Return a response WITHOUT a JWT, signaling the frontend to show the OTP screen
         return new LoginResponseDTO(
                 null, // No JWT yet!
+                null,
                 new UserResponse(
                         user.getUserId(),
                         user.getUsername(),
@@ -105,9 +109,11 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. Logic to generate the security token
         String jwtToken = jwtUtils.generateJwtTokenFromEmail(userDetails);
-
+        // 5. Create the Refresh Token
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getEmail());
         return new LoginResponseDTO(
                 jwtToken,
+                refreshToken.getToken(),
                 new UserResponse(
                         user.getUserId(),
                         user.getUsername(),
@@ -207,8 +213,12 @@ public class AuthServiceImpl implements AuthService {
         String jwtToken = Optional.ofNullable(jwtUtils.generateJwtTokenFromEmail(userDetails))
                 .orElseThrow(() -> new JwtGenerationException("Failed to generate JWT token"));
 
+        // Create the Refresh Token for the DB
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getEmail());
+
         return new LoginResponseDTO(
                 jwtToken,
+                refreshToken.getToken(),
                 new UserResponse(
                         Optional.ofNullable(userDetails.getId()).orElse(0L),   // safe id
                         userDetails.getUsername(),
@@ -219,6 +229,41 @@ public class AuthServiceImpl implements AuthService {
                                 .map(GrantedAuthority::getAuthority)
                                 .toList()
                 ));
+    }
+
+    @Override
+    @Transactional
+    public LoginResponseDTO refreshAccessToken(TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    // 1. Prepare UserDetails for JWT generation
+                    UserDetailsImpl userDetails = UserDetailsImpl.build(user);
+
+                    // 2. Generate new short-lived Access Token
+                    String newJwtToken = jwtUtils.generateJwtTokenFromEmail(userDetails);
+
+                    // 3. ROTATE: Generate new Refresh Token (Service logic deletes the old one)
+                    RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getEmail());
+
+                    // 4. Return standard LoginResponseDTO
+                    return new LoginResponseDTO(
+                            newJwtToken,
+                            newRefreshToken.getToken(),
+                            new UserResponse(
+                                    user.getUserId(),
+                                    user.getUsername(),
+                                    user.getEmail(),
+                                    user.isEnabled(),
+                                    user.getRoles().stream().map(r -> r.getRoleName().name()).toList()
+                            )
+                    );
+                })
+                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
+                        "Refresh token is not in database!"));
     }
 
     /**

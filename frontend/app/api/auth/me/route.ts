@@ -4,13 +4,14 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getBackendUrl } from '@/lib/api.utils';
 import { handleServerError } from '@/lib/api/error-handling';
+import { decryptToken } from '@/lib/api/crypto';
 
 export async function GET() {
   try {
     const SPRING_BOOT_URL = getBackendUrl();
-    const jwtToken = (await cookies()).get('jwt_token')?.value;
+    const encryptedJwt = (await cookies()).get('jwt_token')?.value;
 
-    if (!jwtToken) {
+    if (!encryptedJwt) {
       return NextResponse.json(
         {
           success: false,
@@ -22,9 +23,10 @@ export async function GET() {
         { status: 401 }
       );
     }
+    const rawJwt = decryptToken(encryptedJwt);
 
     const headers: HeadersInit = {
-      'Authorization': `Bearer ${jwtToken}`,
+      'Authorization': `Bearer ${rawJwt}`,
     };
 
     const response = await fetch(`${SPRING_BOOT_URL}/api/auth/me`, {

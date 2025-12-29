@@ -233,5 +233,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+// --- Refresh Token Specific Exception ---
 
+    @ExceptionHandler(TokenRefreshException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleTokenRefreshException(TokenRefreshException ex) {
+        log.warn("Refresh token failed: {}", ex.getMessage());
+
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                ex.getMessage(),
+                HttpStatus.FORBIDDEN.value(), // 403 is standard for invalid/expired refresh tokens
+                "REFRESH_TOKEN_EXPIRED",      // Specific code for BFF to catch
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+    }
 }

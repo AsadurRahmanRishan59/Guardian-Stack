@@ -145,3 +145,28 @@ CREATE TABLE IF NOT EXISTS public.gs_verification_tokens
 
 -- Index for fast lookup when the user submits the code
 CREATE INDEX IF NOT EXISTS idx_gs_token_lookup ON public.gs_verification_tokens (token, user_id);
+
+/* =============================================================================
+TABLE: gs_refresh_tokens
+DESCRIPTION: Stores long-lived refresh tokens for session rotation and revocation.
+=============================================================================
+*/
+
+CREATE TABLE IF NOT EXISTS public.gs_refresh_tokens
+(
+    token_id    BIGSERIAL PRIMARY KEY,
+    token       VARCHAR(255) NOT NULL UNIQUE,
+    user_id     BIGINT       NOT NULL UNIQUE, -- Ensures 1 active refresh token per user (optional)
+    expiry_date TIMESTAMP    NOT NULL,
+    revoked     BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES public.gs_users (user_id) ON DELETE CASCADE
+);
+
+-- Index for high-performance token lookup during rotation
+CREATE INDEX IF NOT EXISTS idx_gs_refresh_token_value ON public.gs_refresh_tokens (token);
+
+-- Update permissions for the application user
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gs_refresh_tokens TO guardian_app_user;
+GRANT USAGE, SELECT ON SEQUENCE public.gs_refresh_tokens_token_id_seq TO guardian_app_user;
