@@ -1,7 +1,8 @@
 // app/api/auth/signup/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { handleServerError } from '@/lib/api/error-handling';
-import { getBackendUrl } from '@/lib/api.utils';
+import { getBackendUrl } from '@/lib/api.client';
+
 
 export async function POST(request: NextRequest) {
   try {

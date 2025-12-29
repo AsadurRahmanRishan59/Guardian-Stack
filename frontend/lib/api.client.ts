@@ -5,6 +5,10 @@ export const getApiBaseUrl = (): string => {
     return process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 };
 
+export const getBackendUrl = (): string => {
+    return process.env.SPRING_BOOT_API_URL || 'http://localhost:6060';
+};
+
 
 // Add this helper to your api client file
 function getCookie(name: string): string | undefined {

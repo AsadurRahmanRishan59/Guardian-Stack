@@ -1,6 +1,10 @@
 import { api } from "@/lib/api.client";
 import { ApiResponse } from "@/types/api.types";
-import { LoginCredentials, LoginResponseDTO, UserResponse } from "@/types/auth.types";
+import { LoginCredentials, LoginResponseDTO, SignupRequest, UserResponse } from "@/types/auth.types";
+
+export function doSignup(signupRequest: SignupRequest): Promise<ApiResponse<LoginResponseDTO>> {
+    return api.client.post('/auth/login', signupRequest);
+}
 
 export function doLogin(credentials: LoginCredentials): Promise<ApiResponse<LoginResponseDTO>> {
     return api.client.post('/auth/login', credentials);
