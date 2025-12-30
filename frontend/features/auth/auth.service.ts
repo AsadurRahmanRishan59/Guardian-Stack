@@ -14,8 +14,8 @@ export function doResendOTP(email: string): Promise<ApiResponse<string>> {
     return api.client.post('/auth/resend-otp', {email});
 }
 
-export function doLogin(credentials: LoginCredentials): Promise<ApiResponse<LoginResponseDTO>> {
-    return api.client.post('/auth/login', credentials);
+export function doSignin(credentials: LoginCredentials): Promise<ApiResponse<LoginResponseDTO>> {
+    return api.client.post('/auth/signin', credentials);
 }
 
 export function logout(): Promise<ApiResponse<null>> {

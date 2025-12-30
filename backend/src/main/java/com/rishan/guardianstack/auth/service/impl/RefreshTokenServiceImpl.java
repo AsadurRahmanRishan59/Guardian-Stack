@@ -5,6 +5,7 @@ import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.RefreshTokenRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.service.RefreshTokenService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,13 +24,15 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Value("${app.security.jwt.refresh-token.expiration}")
     private Long refreshTokenDurationMs;
 
+    @Override
+    @Transactional
     public RefreshToken createRefreshToken(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         // Delete any existing token for this user (Single Session Policy)
         refreshTokenRepository.deleteByUser(user);
-
+        refreshTokenRepository.flush();
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)
                 .token(UUID.randomUUID().toString())

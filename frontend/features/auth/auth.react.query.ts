@@ -1,7 +1,7 @@
 import { LoginCredentials, SignupRequest, UserResponse, VerifyOTPData } from "@/types/auth.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { doLogin, doResendOTP, doSignup, doVerifyOTP, getCurrentUser, logout } from "./auth.service";
+import { doSignin, doResendOTP, doSignup, doVerifyOTP, getCurrentUser, logout } from "./auth.service";
 import { toast } from "sonner";
 
 // Query keys
@@ -50,12 +50,12 @@ export function useSignup() {
 }
 
 // Login mutation
-export function useLogin() {
+export function useSignin() {
     const queryClient = useQueryClient();
     const router = useRouter();
 
     return useMutation({
-        mutationFn: async (credentials: LoginCredentials) => await doLogin(credentials),
+        mutationFn: async (credentials: LoginCredentials) => await doSignin(credentials),
         onSuccess: async (response) => {
             if (response.data?.userResponse) {
                 queryClient.setQueryData(authKeys.user(), response.data.userResponse);

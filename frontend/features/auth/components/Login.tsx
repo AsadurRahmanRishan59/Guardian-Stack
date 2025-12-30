@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useLogin } from "../auth.react.query";
+import { useSignin } from "../auth.react.query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
@@ -23,12 +23,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { loginSchema, LoginFormData } from "../auth.schema";
 
 export default function Login() {
-  const loginMutation = useLogin();
+  const loginMutation = useSignin();
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
@@ -71,16 +71,16 @@ export default function Login() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
             {/* Username */}
             <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                {...form.register("username")}
-                placeholder="Enter username"
+                id="email"
+                {...form.register("email")}
+                placeholder="Enter email"
                 disabled={loginMutation.isPending}
               />
-              {form.formState.errors.username && (
+              {form.formState.errors.email && (
                 <p className="text-sm text-red-500">
-                  {form.formState.errors.username.message}
+                  {form.formState.errors.email.message}
                 </p>
               )}
             </div>

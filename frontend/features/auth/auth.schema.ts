@@ -34,15 +34,8 @@ export const verifyOtpSchema = z.object({
 export type VerifyOtpData = z.infer<typeof verifyOtpSchema>;
 
 export const loginSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Username must be at least 3 characters")
-    .max(20, "Username cannot exceed 20 characters")
-    .regex(
-      /^(?=.{3,20}$)(?!.*__)[a-zA-Z0-9]+(_[a-zA-Z0-9]+)*$/,
-      "Only letters, numbers, underscores. Cannot start or end with underscore"
-    ),
-
+  email: z
+    .email(),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
