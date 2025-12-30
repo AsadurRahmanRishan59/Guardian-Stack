@@ -1,7 +1,7 @@
-import { LoginCredentials, UserResponse } from "@/types/auth.types";
+import { LoginCredentials, SignupRequest, UserResponse, VerifyOTPData } from "@/types/auth.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { doLogin, getCurrentUser, logout } from "./auth.service";
+import { doLogin, doResendOTP, doSignup, doVerifyOTP, getCurrentUser, logout } from "./auth.service";
 import { toast } from "sonner";
 
 // Query keys
@@ -25,6 +25,27 @@ export function useCurrentUser() {
         refetchOnReconnect: false,
         staleTime: Infinity
 
+    });
+}
+
+export function useSignup() {
+    const router = useRouter();
+
+    return useMutation({
+        mutationFn: async (data: SignupRequest) => await doSignup(data),
+        onSuccess: (response) => {
+            // GuardianStack Flow: 
+            // Signup is successful, but user is NOT enabled yet.
+            // We redirect them to the OTP verification page.
+            toast.success(response.message || "Account created! Please verify your email.");
+
+            // Pass the email to the verify page via query params so the user doesn't have to re-type it
+            const email = response.data?.userResponse.email;
+            router.push(`/verify-otp?email=${encodeURIComponent(email || "")}`);
+        },
+        onError: (error) => {
+            toast.error(error.message || "Registration failed");
+        }
     });
 }
 
@@ -59,5 +80,38 @@ export function useLogout() {
             queryClient.clear();
             router.push('/login');
         },
+    });
+}
+
+
+// features/auth/auth.react.query.ts
+
+export function useVerifyOtp() {
+    return useMutation({
+        mutationFn: async (data: VerifyOTPData) => {
+            const response = await doVerifyOTP(data);
+            return response.data;
+        },
+        onSuccess: () => {
+            toast.success("Email verified successfully! You can now login.");
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to Verify OTP');
+        }
+    });
+}
+
+export function useResendOtp() {
+    return useMutation({
+        mutationFn: async ({ email }: { email: string }) => {
+            const response = await doResendOTP(email);
+            return response.data;
+        },
+        onSuccess: () => {
+            toast.success("A new code has been sent to your email.");
+        },
+        onError: (error) => {
+            toast.error(error.message || "Failed to resend code.");
+        }
     });
 }

@@ -1,21 +1,25 @@
-// app/api/auth/login/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { handleServerError } from '@/lib/api/error-handling';
-import { encryptToken } from '@/lib/api/crypto';
-import { getBackendUrl } from '@/lib/api.client';
+// app/api/auth/verify-otp/route.ts
+import { getBackendUrl } from "@/lib/api.client";
+import { encryptToken } from "@/lib/api/crypto";
+import { handleServerError } from "@/lib/api/error-handling";
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+
     const SPRING_BOOT_URL = getBackendUrl();
-    const response = await fetch(`${SPRING_BOOT_URL}/api/auth/public/signin`, {
-      method: 'POST',
+    const { email, otp } = await request.json();
+
+    // Use URLSearchParams to safely encode the query parameters
+    const params = new URLSearchParams({ email, otp });
+
+    // 1. Call the Spring Boot Endpoint
+    const response = await fetch(`${SPRING_BOOT_URL}/api/auth/public/verify-otp?${params.toString()}`, {
+      method: "POST",
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include',
-      body: JSON.stringify(body),
     });
 
     const data = await response.json();
@@ -43,10 +47,10 @@ export async function POST(request: NextRequest) {
         sameSite: 'lax',
         path: '/',
       });
-
       return NextResponse.json(data);
     }
     return NextResponse.json(data, { status: response.status });
+
   } catch (error) {
     const handledError = handleServerError(error);
     return NextResponse.json(handledError, { status: handledError.statusCode });

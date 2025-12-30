@@ -2,9 +2,9 @@
 // app/api/auth/me/route.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getBackendUrl } from '@/lib/api.utils';
 import { handleServerError } from '@/lib/api/error-handling';
 import { decryptToken } from '@/lib/api/crypto';
+import { getBackendUrl } from '@/lib/api.client';
 
 export async function GET() {
   try {

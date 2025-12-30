@@ -33,14 +33,18 @@ export interface SignupRequest {
   password: string;
 }
 
-export interface AuthState {
-  user: UserResponse | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-}
-
 export interface LoginCredentials {
   email: string;
   password: string;
 }
 
+export interface VerifyOTPData{
+  email:string;
+  otp:string;
+}
+
+export interface AuthState {
+  user: UserResponse | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
