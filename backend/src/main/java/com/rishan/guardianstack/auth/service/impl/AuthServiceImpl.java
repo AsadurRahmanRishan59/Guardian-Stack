@@ -145,6 +145,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void initiatePasswordReset(String email) {
+        validateEmailOnly(email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 

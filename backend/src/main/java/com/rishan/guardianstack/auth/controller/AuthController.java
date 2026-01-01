@@ -11,6 +11,7 @@ import com.rishan.guardianstack.auth.service.impl.UserDetailsImpl;
 import com.rishan.guardianstack.core.exception.UserDetailsNotFoundException;
 import com.rishan.guardianstack.core.response.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -81,7 +82,7 @@ public class AuthController {
     }
 
     @PostMapping("/public/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(@RequestParam String email) {
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Email(message = "Invalid Email") @RequestParam String email) {
         authService.initiatePasswordReset(email);
         return ResponseEntity.ok(new ApiResponse<>(true, "Reset code sent to your email.", null, LocalDateTime.now()));
     }
@@ -89,7 +90,7 @@ public class AuthController {
     @PostMapping("/public/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
         authService.resetPassword(request);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Password has been reset successfully.", null, LocalDateTime.now()));
+        return ResponseEntity.ok(new ApiResponse<>(true, "Password has been reset successfully. Please login", null, LocalDateTime.now()));
     }
 
     @GetMapping("/me")

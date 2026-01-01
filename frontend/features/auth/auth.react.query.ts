@@ -1,8 +1,9 @@
-import { LoginCredentials, SignupRequest, UserResponse, VerifyOTPData } from "@/types/auth.types";
+import { LoginCredentials, PasswordResetRequest, SignupRequest, UserResponse, VerifyOTPData } from "@/types/auth.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { doSignin, doResendOTP, doSignup, doVerifyOTP, getCurrentUser, logout } from "./auth.service";
+import { doSignin, doResendOTP, doSignup, doVerifyOTP, getCurrentUser, logout, doForgotPassword, doResetPassword } from "./auth.service";
 import { toast } from "sonner";
+import { isServerError } from "@/lib/api/error-handling";
 
 // Query keys
 export const authKeys = {
@@ -63,8 +64,23 @@ export function useSignin() {
             toast.success(response?.message || "Login successful");
             router.push('/dashboard');
         },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to login');
+        onError: (error: unknown, variables) => {
+            if (isServerError(error)) {
+                // Based on Spring Boot Record: data contains "ACCOUNT_DISABLED"
+                const errorData = error?.data;
+
+                if (errorData === "ACCOUNT_DISABLED") {
+                    toast.error("Account not verified. Redirecting...");
+                    router.push(`/verify-otp?email=${encodeURIComponent(variables.email)}`);
+                    return;
+                }
+
+                // Handle other specific server errors (Bad Credentials, etc.)
+                toast.error(error.message || 'Failed to login');
+            } else {
+                // This handles network errors or unexpected JS crashes
+                toast.error('A network error occurred. Please try again.');
+            }
         }
     });
 }
@@ -112,6 +128,40 @@ export function useResendOtp() {
         },
         onError: (error) => {
             toast.error(error.message || "Failed to resend code.");
+        }
+    });
+}
+
+export function useForgotPassword() {
+    const router = useRouter();
+    return useMutation({
+        mutationFn: async ({ email }: { email: string }) => {
+            const response = await doForgotPassword(email);
+            return response;
+        },
+        onSuccess: (response, variables) => {
+            toast.success(response.message || "A new code has been sent to your email.");
+            // Push them to the reset password page
+            router.push(`/reset-password?email=${encodeURIComponent(variables.email)}`);
+        },
+        onError: (error) => {
+            toast.error(error.message || "Failed to resend code.");
+        }
+    });
+}
+
+export function useResetPassword() {
+    const router = useRouter();
+
+    return useMutation({
+        mutationFn: async (data: PasswordResetRequest) => await doResetPassword(data),
+        onSuccess: (response) => {
+
+            toast.success(response.message || "Password has been reset successfully.");
+            router.push(`/signin`);
+        },
+        onError: (error) => {
+            toast.error(error.message || "Password Reset failed");
         }
     });
 }

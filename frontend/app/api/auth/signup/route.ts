@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleServerError } from '@/lib/api/error-handling';
 import { getBackendUrl } from '@/lib/api.client';
 
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

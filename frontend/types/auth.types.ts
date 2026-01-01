@@ -38,9 +38,15 @@ export interface LoginCredentials {
   password: string;
 }
 
-export interface VerifyOTPData{
-  email:string;
-  otp:string;
+export interface VerifyOTPData {
+  email: string;
+  otp: string;
+}
+
+export interface PasswordResetRequest {
+  email: string;
+  otp: string;
+  newPassword: string;
 }
 
 export interface AuthState {
