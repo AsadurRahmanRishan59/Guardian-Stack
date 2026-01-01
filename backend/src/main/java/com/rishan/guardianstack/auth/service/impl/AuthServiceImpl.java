@@ -20,8 +20,10 @@ import com.rishan.guardianstack.core.util.PasswordPolicyValidator;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -198,10 +200,16 @@ public class AuthServiceImpl implements AuthService {
                             loginRequestDTO.password()
                     )
             );
-        } catch (org.springframework.security.core.AuthenticationException e) {
-            throw new BadCredentialsException("Bad credentials");
+        } catch (DisabledException e) {
+            // Specifically catch DisabledException and re-throw it so the Global Handler sees it
+            throw e;
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
+            // Catch only actual wrong password/email errors
+            throw new BadCredentialsException("Invalid email or password");
+        } catch (AuthenticationException e) {
+            // Catch any other generic auth errors
+            throw new BadCredentialsException("Authentication failed");
         }
-
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // Safe cast

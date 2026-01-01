@@ -5,6 +5,8 @@ import com.rishan.guardianstack.auth.model.VerificationToken;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
 import com.rishan.guardianstack.auth.service.VerificationService;
+import com.rishan.guardianstack.core.exception.InvalidTokenException;
+import com.rishan.guardianstack.core.exception.TokenExpiredException;
 import com.rishan.guardianstack.core.exception.VerificationException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -57,7 +59,7 @@ public class VerificationServiceImpl implements VerificationService {
                 .orElseThrow(() -> new RuntimeException("Invalid Token or Email"));
 
         if (verificationToken.isExpired()) {
-            throw new RuntimeException("Token has expired");
+            throw new TokenExpiredException("Token has expired");
         }
 
         if (verificationToken.getConfirmedAt() != null) {
@@ -80,6 +82,8 @@ public class VerificationServiceImpl implements VerificationService {
     public String createPasswordResetToken(User user) {
         // 1. Delete any old reset tokens for this user
         tokenRepository.deleteByUserAndTokenType(user, "PASSWORD_RESET");
+
+        tokenRepository.flush();
 
         // 2. Generate 6-digit OTP
         String otp = String.format("%06d", new SecureRandom().nextInt(1000000));
