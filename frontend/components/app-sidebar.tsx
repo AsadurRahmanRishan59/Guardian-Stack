@@ -50,8 +50,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" onClick={handleHomeClick}>
                 <Image
-                  src="/images/UICL_Logo_Crop.png"
-                  alt="Company Logo"
+                  src="/images/GS.png"
+                  alt="Guardian Stack Logo"
                   width={32}
                   height={32}
                   className="rounded-md"
@@ -81,15 +81,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" onClick={handleHomeClick}>
               <Image
-                src="/images/UICL_Logo_Crop.png"
-                alt="Company Logo"
+                src="/images/GS.png"
+                alt="Guardian Stack Logo"
                 width={32}
                 height={32}
                 className="rounded-md"
                 priority
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">Voucher Management</span>
+                <span className="truncate font-medium">Guardian Stack</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>

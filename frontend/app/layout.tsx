@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Voucher Management",
-  description: "Voucher Management System",
+  title: "Guardian Stack",
+  description: "Insurance made simple with Guardian Stack.",
 };
 
 export default function RootLayout({

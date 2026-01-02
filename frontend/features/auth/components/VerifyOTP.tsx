@@ -4,11 +4,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useEffect } from "react";
-import { ShieldCheck, ArrowLeft, RefreshCw } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"; // Shadcn component
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from "@/components/ui/form";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useVerifyOtp, useResendOtp } from "../auth.react.query";
 import { verifyOtpSchema, VerifyOtpData } from "../auth.schema";
 
@@ -45,84 +46,128 @@ export default function VerifyOtp() {
       if (isServerError(error)) {
         form.setError("otp", { 
           type: "server", 
-          message: typeof error.message === 'string' ? error.message : "Invalid or expired code" 
+          message: typeof error.message === 'string' ? error.message : "The code entered is incorrect" 
         });
       }
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4 dark:bg-slate-950">
-      <Card className="w-full max-w-md shadow-xl border-gray-200 dark:border-slate-800 dark:bg-slate-900">
-        <CardHeader className="text-center space-y-2">
-          <div className="flex justify-center">
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-full text-blue-600">
-              <ShieldCheck size={32} />
-            </div>
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
+      <Card className="w-full max-w-md shadow-xl border-t-4 border-t-[#DAA520] bg-white dark:bg-slate-900 rounded-xl overflow-hidden border-x-slate-200 border-b-slate-200 dark:border-slate-800">
+        <CardHeader className="space-y-3 flex flex-col items-center pt-10 pb-4">
+          
+          {/* Branded Glassmorphic Logo Treatment */}
+          <div className="relative mb-2 flex items-center justify-center">
+            {/* Soft gold aura/glow */}
+            <div className="absolute h-16 w-16 bg-[#DAA520]/15 blur-2xl rounded-full" />
+            
+            <Image 
+              src="/images/GS.png" 
+              alt="Guardian Stack Logo" 
+              width={80} 
+              height={80} 
+              className="relative object-contain transition-transform duration-500 hover:scale-105"
+              priority
+            />
           </div>
-          <CardTitle className="text-2xl font-bold">Two-Step Verification</CardTitle>
-          <CardDescription>
-            We&apos;ve sent a 6-digit code to <br />
-            <span className="font-medium text-slate-900 dark:text-slate-200">{email}</span>
-          </CardDescription>
+
+          <div className="text-center relative">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Verify your <span className="text-[#DAA520]">Account</span>
+            </h1>
+            <p className="text-xs font-medium text-slate-500 mt-1">
+              Final step to secure your protection
+            </p>
+          </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pb-8 px-8">
+          <div className="mb-6 p-4 bg-slate-50/50 dark:bg-slate-800/20 backdrop-blur-sm rounded-xl text-center border border-slate-100 dark:border-slate-800">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              We&apos;ve sent a 6-digit verification code to:
+            </p>
+            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 mt-1 break-all">
+              {email || "your email address"}
+            </p>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
                 name="otp"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col items-center justify-center">
+                  <FormItem className="flex flex-col items-center justify-center space-y-4">
+                    <FormLabel className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Enter Verification Code
+                    </FormLabel>
                     <FormControl>
-                      {/* Using Shadcn InputOTP for that professional split-box look */}
                       <InputOTP maxLength={6} {...field}>
                         <InputOTPGroup className="gap-2">
-                          <InputOTPSlot className="w-12 h-14 text-lg border-2" index={0} />
-                          <InputOTPSlot className="w-12 h-14 text-lg border-2" index={1} />
-                          <InputOTPSlot className="w-12 h-14 text-lg border-2" index={2} />
-                          <InputOTPSlot className="w-12 h-14 text-lg border-2" index={3} />
-                          <InputOTPSlot className="w-12 h-14 text-lg border-2" index={4} />
-                          <InputOTPSlot className="w-12 h-14 text-lg border-2" index={5} />
+                          {[...Array(6)].map((_, i) => (
+                            <InputOTPSlot
+                              key={i}
+                              index={i}
+                              className="h-12 w-11 text-lg font-semibold border-slate-200 dark:border-slate-800 rounded-lg focus:border-[#DAA520] focus:ring-1 focus:ring-[#DAA520]/20 transition-all bg-white dark:bg-slate-950"
+                            />
+                          ))}
                         </InputOTPGroup>
                       </InputOTP>
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs font-medium text-red-500" />
                   </FormItem>
                 )}
               />
 
-              <Button type="submit" disabled={isPending} className="w-full bg-blue-600 hover:bg-blue-700 h-11">
-                {isPending ? "Verifying..." : "Verify Account"}
-              </Button>
-
-              <div className="text-center space-y-4">
-                <p className="text-sm text-slate-500">
-                  Didn&apos;t receive the code?{" "}
-                  {timer > 0 ? (
-                    <span className="text-blue-600 font-medium">Wait {timer}s</span>
+              <div className="space-y-4 pt-2">
+                <Button 
+                  type="submit" 
+                  disabled={isPending} 
+                  className="w-full h-12 text-sm font-bold shadow-md transition-all rounded-lg text-white bg-slate-900 hover:bg-slate-800 dark:bg-[#DAA520] dark:text-slate-950"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => { resend({ email }); setTimer(60); }}
-                      disabled={isResending}
-                      className="text-blue-600 hover:underline font-medium inline-flex items-center gap-1"
-                    >
-                      {isResending && <RefreshCw size={14} className="animate-spin" />}
-                      Resend Code
-                    </button>
+                    "Complete Registration"
                   )}
-                </p>
+                </Button>
 
-                <Link href="/signup" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
-                  <ArrowLeft size={14} />
-                  Back to Sign Up
-                </Link>
+                <div className="text-center">
+                  <p className="text-xs text-slate-500">
+                    Didn&apos;t get the code?{" "}
+                    {timer > 0 ? (
+                      <span className="text-slate-400 font-medium italic">Retry in {timer}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { resend({ email }); setTimer(60); }}
+                        disabled={isResending}
+                        className="text-[#DAA520] hover:text-[#B8860B] font-bold inline-flex items-center gap-1 transition-colors underline-offset-4 hover:underline"
+                      >
+                        {isResending && <RefreshCw size={12} className="animate-spin" />}
+                        Send new code
+                      </button>
+                    )}
+                  </p>
+                </div>
               </div>
             </form>
           </Form>
         </CardContent>
+
+        <CardFooter className="flex justify-center border-t border-slate-100 dark:border-slate-800 py-6">
+          <Link 
+            href="/signup" 
+            className="group flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />
+            Back to Sign Up
+          </Link>
+        </CardFooter>
       </Card>
     </div>
   );

@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS public.gs_refresh_tokens
     CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES public.gs_users (user_id) ON DELETE CASCADE
 );
 
--- Index for high-performance token lookup during rotation
+-- Index for high performance token lookup during rotation
 CREATE INDEX IF NOT EXISTS idx_gs_refresh_token_value ON public.gs_refresh_tokens (token);
 
 -- Update permissions for the application user
