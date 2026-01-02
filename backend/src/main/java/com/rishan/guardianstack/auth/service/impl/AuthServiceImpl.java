@@ -54,7 +54,7 @@ public class AuthServiceImpl implements AuthService {
         Map<String, String> fieldErrors = new HashMap<>();
 
         // 1. Validate Password and Email format
-        validateSignUpRequest(request.email(), request.password(), fieldErrors);
+        validateSignUpRequest(request.username(), request.email(), request.password(), fieldErrors);
 
         // 2. Uniqueness Check (ONLY Email)
         if (userRepository.existsByEmail(request.email())) {
@@ -160,8 +160,9 @@ public class AuthServiceImpl implements AuthService {
 
         Map<String, String> fieldErrors = new HashMap<>();
 
+        User u = userRepository.findByEmail(request.email()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         // 1. Validate Password and Email format
-        validateSignUpRequest(request.email(), request.newPassword(), fieldErrors);
+        validateSignUpRequest(u.getEmail(), request.email(), request.newPassword(), fieldErrors);
 
         // 1. Find the token and verify it's for Password Reset
         VerificationToken verificationToken = verificationTokenRepository
@@ -278,9 +279,9 @@ public class AuthServiceImpl implements AuthService {
     /**
      * Validate SignUpRequestDTO
      */
-    private void validateSignUpRequest(String email, String password, Map<String, String> fieldErrors) {
+    private void validateSignUpRequest(String username, String email, String password, Map<String, String> fieldErrors) {
         // Password validation
-        List<String> passwordErrors = passwordPolicyValidator.validate(password, email);
+        List<String> passwordErrors = passwordPolicyValidator.validate(password, username);
         if (!passwordErrors.isEmpty()) {
             fieldErrors.put("password", String.join(", ", passwordErrors));
         }

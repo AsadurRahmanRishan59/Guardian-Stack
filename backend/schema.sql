@@ -170,3 +170,13 @@ CREATE INDEX IF NOT EXISTS idx_gs_refresh_token_value ON public.gs_refresh_token
 -- Update permissions for the application user
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gs_refresh_tokens TO guardian_app_user;
 GRANT USAGE, SELECT ON SEQUENCE public.gs_refresh_tokens_token_id_seq TO guardian_app_user;
+
+-- 1. Insert the Master Admin User
+INSERT INTO public.gs_users (username, email, password, enabled, sign_up_method)
+VALUES ('Rishan Master', 'admin@guardianstack.com', '$2a$12$R9h/lIPzHZluG60FbRZp8eW9.T.L9sR.Y3Y3Y3Y3Y3Y3Y3Y3Y3Y3Y', true, 'MANUAL')
+RETURNING user_id;
+
+-- 2. Link this user to ROLE_MASTER_ADMIN (Assuming role_id 1 is MASTER_ADMIN)
+INSERT INTO public.gs_user_roles (user_id, role_id)
+VALUES ((SELECT user_id FROM public.gs_users WHERE email = 'admin@guardianstack.com'),
+        (SELECT role_id FROM public.gs_roles WHERE role_name = 'ROLE_MASTER_ADMIN'));
