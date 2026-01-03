@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,19 +26,20 @@ public class VerificationServiceImpl implements VerificationService {
     @Override
     @Transactional
     public String createToken(User user) {
-        // 1. Check Cooldown (60 seconds)
-        tokenRepository.findFirstByUserOrderByTokenIdDesc(user)
-                .ifPresent(lastToken -> {
-                    // Since you use BaseEntity, we have getCreatedAt()
-                    if (lastToken.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(60))) {
-                        throw new VerificationException("Please wait 60 seconds before requesting a new code.");
-                    }
-                });
+        Optional<VerificationToken> lastToken =
+                tokenRepository.findFirstByUserOrderByCreatedAtDesc(user);
 
-        // 2. Clean up old tokens to keep the DB small
+        if (lastToken.isPresent() &&
+                lastToken.get().getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(60))) {
+            throw new VerificationException(
+                    "Please wait 60 seconds before requesting a new code."
+            );
+        }
+
+
         tokenRepository.deleteByUser(user);
 
-        // 3. Generate and Save new token
+
         SecureRandom secureRandom = new SecureRandom();
         String otp = String.format("%06d", secureRandom.nextInt(1000000));
 
@@ -56,14 +58,18 @@ public class VerificationServiceImpl implements VerificationService {
     @Transactional
     public User verifyToken(String email, String otp) {
         VerificationToken verificationToken = tokenRepository.findByUserEmailAndToken(email, otp)
-                .orElseThrow(() -> new RuntimeException("Invalid Token or Email"));
+                .orElseThrow(() -> new InvalidTokenException("Invalid verification code or email address"));
+
+        if (!verificationToken.getTokenType().equals("EMAIL_VERIFICATION")) {
+            throw new InvalidTokenException("Invalid token type");
+        }
 
         if (verificationToken.isExpired()) {
             throw new TokenExpiredException("Token has expired");
         }
 
         if (verificationToken.getConfirmedAt() != null) {
-            throw new RuntimeException("Email already verified");
+            throw new VerificationException("This email has already been verified");
         }
 
         // Success: Activate the user

@@ -24,13 +24,20 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: public
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 5
+        queue-capacity: 100
+      thread-name-prefix: async-audit-
 
   # Email Configuration (Ready for Phase 4)
   mail:
     host: smtp.gmail.com
     port: 587
-    username: 
-    password:
+    username: rahmanrisan@gmail.com
+    password: lxajxzbpfzrvlbes
     properties:
       mail:
         smtp:
@@ -52,3 +59,7 @@ app:
       refresh-token:
         # Refresh Token: 7 Days (604,800,000 ms)
         expiration: 604800000
+    token-cleanup:
+      cron: 0 0  3 * * ?
+    audit-log:
+      retention-days: 90

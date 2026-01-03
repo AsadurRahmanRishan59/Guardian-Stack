@@ -10,6 +10,7 @@ import com.rishan.guardianstack.auth.service.AuthService;
 import com.rishan.guardianstack.auth.service.impl.UserDetailsImpl;
 import com.rishan.guardianstack.core.exception.UserDetailsNotFoundException;
 import com.rishan.guardianstack.core.response.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
@@ -32,13 +33,18 @@ public class AuthController {
 
     private final AuthService authService;
 
+    // ==========================================
+    // PUBLIC ENDPOINTS (No Authentication)
+    // ==========================================
+
     @PostMapping("/public/signup")
-    public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(@Valid @RequestBody SignUpRequestDTO signUpRequest) {
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(
+            @Valid @RequestBody SignUpRequestDTO signUpRequest) {
         LoginResponseDTO response = authService.registerPublicUser(signUpRequest);
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
-                "Registration successful! Please check your email for a 6-digit verification code to activate your account.",
+                "Registration successful! Please check your email for a 6-digit verification code.",
                 response,
                 LocalDateTime.now()
         ));
@@ -60,13 +66,18 @@ public class AuthController {
     }
 
     @PostMapping("/public/signin")
-    public ResponseEntity<ApiResponse<LoginResponseDTO>> signin(@Valid @RequestBody LoginRequestDTO loginRequestDTO) {
-        LoginResponseDTO response = authService.signin(loginRequestDTO);
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> signin(
+            @Valid @RequestBody LoginRequestDTO loginRequestDTO,
+            HttpServletRequest request) {
+
+        LoginResponseDTO response = authService.signin(loginRequestDTO, request);
+
         return ResponseEntity.status(HttpStatus.OK).body(
                 new ApiResponse<>(
-                        true, "Welcome " + response.userResponse().username() + " !", response,
+                        true,
+                        "Welcome " + response.userResponse().username() + "!",
+                        response,
                         LocalDateTime.now()
-
                 ));
     }
 
@@ -82,50 +93,114 @@ public class AuthController {
     }
 
     @PostMapping("/public/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Email(message = "Invalid Email") @RequestParam String email) {
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Email(message = "Invalid Email") @RequestParam String email) {
+
         authService.initiatePasswordReset(email);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Reset code sent to your email.", null, LocalDateTime.now()));
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Reset code sent to your email.",
+                null,
+                LocalDateTime.now()
+        ));
     }
 
     @PostMapping("/public/reset-password")
-    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody PasswordResetRequest request) {
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody PasswordResetRequest request) {
+
         authService.resetPassword(request);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Password has been reset successfully. Please login", null, LocalDateTime.now()));
-    }
-
-    @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-
-        if (userDetails == null) {
-            throw new UserDetailsNotFoundException("User details not found");
-        }
-        UserDetailsImpl user = (UserDetailsImpl) userDetails;
-        return ResponseEntity.status(HttpStatus.OK).body(
-                new ApiResponse<>(
-                        true, "User details retrieved", new UserResponse(
-                        Optional.ofNullable(user.getId()).orElse(0L),   // safe id
-                        user.getUsername(),
-                        user.getEmail(),
-                        user.isEnabled(),
-                        user.getAuthorities()
-                                .stream()
-                                .map(GrantedAuthority::getAuthority)
-                                .toList()
-                ),
-                        LocalDateTime.now()
-
-                ));
-
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Password has been reset successfully. Please login.",
+                null,
+                LocalDateTime.now()
+        ));
     }
 
     @PostMapping("/public/refresh")
-    public ResponseEntity<ApiResponse<LoginResponseDTO>> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
+    public ResponseEntity<ApiResponse<LoginResponseDTO>> refreshToken(
+            @Valid @RequestBody TokenRefreshRequest request) {
+
         LoginResponseDTO response = authService.refreshAccessToken(request);
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 "Token refreshed successfully",
                 response,
+                LocalDateTime.now()
+        ));
+    }
+
+    // ==========================================
+    // AUTHENTICATED ENDPOINTS (Require Login)
+    // ==========================================
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (userDetails == null) {
+            throw new UserDetailsNotFoundException("User details not found");
+        }
+
+        UserDetailsImpl user = (UserDetailsImpl) userDetails;
+        return ResponseEntity.status(HttpStatus.OK).body(
+                new ApiResponse<>(
+                        true,
+                        "User details retrieved",
+                        new UserResponse(
+                                Optional.ofNullable(user.getId()).orElse(0L),
+                                user.getUsername(),
+                                user.getEmail(),
+                                user.isEnabled(),
+                                user.getAuthorities()
+                                        .stream()
+                                        .map(GrantedAuthority::getAuthority)
+                                        .toList()
+                        ),
+                        LocalDateTime.now()
+                ));
+    }
+
+    /**
+     * Logout endpoint - Revokes the current refresh token
+     * This logs the user out from the current device/session
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody TokenRefreshRequest request,
+            HttpServletRequest httpRequest) {
+
+        authService.logout(request.getRefreshToken(), httpRequest);
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Logged out successfully",
+                null,
+                LocalDateTime.now()
+        ));
+    }
+
+    /**
+     * Logout from all devices - Revokes all refresh tokens for the user
+     * This logs the user out from ALL devices/sessions
+     */
+    @PostMapping("/logout-all")
+    public ResponseEntity<ApiResponse<Void>> logoutAllDevices(
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        if (userDetails == null) {
+            throw new UserDetailsNotFoundException("User details not found");
+        }
+
+        authService.logoutAllDevices(userDetails.getUsername(), request);
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Logged out from all devices successfully",
+                null,
                 LocalDateTime.now()
         ));
     }

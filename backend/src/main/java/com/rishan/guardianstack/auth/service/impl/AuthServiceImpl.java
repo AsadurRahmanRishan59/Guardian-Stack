@@ -10,6 +10,7 @@ import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
+import com.rishan.guardianstack.auth.service.AuditService;
 import com.rishan.guardianstack.auth.service.AuthService;
 import com.rishan.guardianstack.auth.service.MailService;
 import com.rishan.guardianstack.auth.service.RefreshTokenService;
@@ -17,6 +18,7 @@ import com.rishan.guardianstack.core.exception.*;
 import com.rishan.guardianstack.core.util.EmailPolicyValidator;
 import com.rishan.guardianstack.core.util.JwtUtils;
 import com.rishan.guardianstack.core.util.PasswordPolicyValidator;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -48,29 +50,36 @@ public class AuthServiceImpl implements AuthService {
     private final MailService mailService;
     private final VerificationTokenRepository verificationTokenRepository;
     private final RefreshTokenService refreshTokenService;
+    private final AuditService auditService;
 
+    // ==========================================
+    // 1. REGISTRATION & VERIFICATION
+    // ==========================================
+
+    /**
+     * Registers a new public user by validating input, checking for email uniqueness, assigning a default role,
+     * saving the user to the database, and generating an OTP for email verification.
+     *
+     * @param request the sign-up request containing user registration details such as username, email, and password
+     * @return a {@code LoginResponseDTO} containing user information and a null token indicating further OTP verification is required
+     */
     public LoginResponseDTO registerPublicUser(SignUpRequestDTO request) {
-
         Map<String, String> fieldErrors = new HashMap<>();
-
-        // 1. Validate Password and Email format
         validateSignUpRequest(request.username(), request.email(), request.password(), fieldErrors);
 
-        // 2. Uniqueness Check (ONLY Email)
         if (userRepository.existsByEmail(request.email())) {
             fieldErrors.put("email", "Email is already registered. Please login.");
         }
+
         if (!fieldErrors.isEmpty()) {
             throw new MultipleFieldValidationException(fieldErrors);
         }
 
-        // 3. Fetch Default Role (ROLE_USER)
         Role userRole = roleRepository.findByRoleName((AppRole.ROLE_USER))
                 .orElseThrow(() -> new RuntimeException("Error: Default User Role not found in database."));
 
-        // 4. Map to Entity and Save
         User user = User.builder()
-                .username(request.username()) // Full Official Name
+                .username(request.username())
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
                 .roles(Collections.singleton(userRole))
@@ -79,13 +88,11 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         userRepository.save(user);
 
-        // 5. Generate and Send OTP
         String otp = verificationService.createToken(user);
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), otp);
 
-        // Return a response WITHOUT a JWT, signaling the frontend to show the OTP screen
         return new LoginResponseDTO(
-                null, // No JWT yet!
+                null,
                 null,
                 new UserResponse(
                         user.getUserId(),
@@ -97,22 +104,27 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * Verifies the provided email and one-time password (OTP), authenticates the user,
+     * and generates a JWT token along with a refresh token for the session.
+     *
+     * @param email The email address of the user attempting to log in. This must adhere to
+     *              the application's email format and validation policies.
+     * @param otp   The one-time password (OTP) provided by the user for authentication.
+     * @return A {@code LoginResponseDTO} object containing the JWT token, refresh token,
+     * and user-specific details including user ID, username, email, enabled status,
+     * and role names.
+     */
     @Override
     @Transactional
     public LoginResponseDTO verifyAndLogin(String email, String otp) {
-        // 1. Validate Email Format/Policy first
         validateEmailOnly(email);
-
-        // 2. Logic to verify the token
         User user = verificationService.verifyToken(email, otp);
 
-        // 3. Logic to prepare the Security Context / UserDetails
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
-
-        // 4. Logic to generate the security token
         String jwtToken = jwtUtils.generateJwtTokenFromEmail(userDetails);
-        // 5. Create the Refresh Token
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getEmail());
+
         return new LoginResponseDTO(
                 jwtToken,
                 refreshToken.getToken(),
@@ -126,12 +138,19 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * Resends a verification code to the user associated with the specified email address.
+     * If the user's account is already verified, an exception will be thrown.
+     *
+     * @param email the email address of the user to resend the verification code to.
+     *              Must be a valid and existing email in the system.
+     * @throws ResourceNotFoundException if no user is found with the specified email address.
+     * @throws VerificationException     if the user's account is already verified.
+     */
     @Override
     @Transactional
     public void resendVerificationCode(String email) {
-        // 1. Validate Email Format/Policy first
         validateEmailOnly(email);
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email, "email"));
 
@@ -143,59 +162,25 @@ public class AuthServiceImpl implements AuthService {
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newOtp);
     }
 
+    // ==========================================
+    // 2. SESSION MANAGEMENT (SIGN IN & REFRESH)
+    // ==========================================
+
+    /**
+     * Authenticates a user by verifying their credentials and returns a response containing
+     * a JWT token, refresh token, and user details.
+     *
+     * @param loginRequestDTO an object containing the user's email and password for authentication
+     * @return a {@code LoginResponseDTO} containing a JWT token, refresh token, and user details
+     * @throws DisabledException            if the user's account is disabled
+     * @throws BadCredentialsException      if the authentication fails due to invalid email or password
+     * @throws UserDetailsNotFoundException if user details cannot be retrieved after authentication
+     * @throws JwtGenerationException       if an error occurs while generating the JWT token
+     */
     @Override
-    public void initiatePasswordReset(String email) {
-        validateEmailOnly(email);
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        String otp = verificationService.createPasswordResetToken(user);
-
-        mailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), otp);
-    }
-
-    @Override
-    @Transactional
-    public void resetPassword(PasswordResetRequest request) {
-
-        Map<String, String> fieldErrors = new HashMap<>();
-
-        User u = userRepository.findByEmail(request.email()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        // 1. Validate Password and Email format
-        validateSignUpRequest(u.getEmail(), request.email(), request.newPassword(), fieldErrors);
-
-        // 1. Find the token and verify it's for Password Reset
-        VerificationToken verificationToken = verificationTokenRepository
-                .findByTokenAndTokenType(request.otp(), "PASSWORD_RESET")
-                .orElseThrow(() -> new InvalidTokenException("Invalid reset code"));
-
-        // 2. Security Check: Does the token belong to the email provided?
-        if (!verificationToken.getUser().getEmail().equals(request.email())) {
-            throw new InvalidTokenException("This code was not issued for this email address");
-        }
-
-        // 3. Expiry Check
-        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
-            verificationTokenRepository.delete(verificationToken);
-            throw new InvalidTokenException("Reset code has expired. Please request a new one.");
-        }
-
-
-        // 4. Update Password
-        User user = verificationToken.getUser();
-        user.setPassword(passwordEncoder.encode(request.newPassword()));
-        userRepository.save(user);
-
-        // 5. Cleanup: Delete the token so it can't be reused
-        verificationTokenRepository.delete(verificationToken);
-    }
-
-    @Override
-    public @NonNull LoginResponseDTO signin(@NonNull LoginRequestDTO loginRequestDTO) {
-
+    public @NonNull LoginResponseDTO signin(@NonNull LoginRequestDTO loginRequestDTO, HttpServletRequest request) {
         Authentication authentication;
         try {
-            // Spring Security uses the 'email' as the principal 'username'
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             loginRequestDTO.email(),
@@ -203,36 +188,64 @@ public class AuthServiceImpl implements AuthService {
                     )
             );
         } catch (DisabledException e) {
-            // Specifically catch DisabledException and re-throw it so the Global Handler sees it
+            auditService.logFailedEvent(
+                    "LOGIN",
+                    loginRequestDTO.email(),
+                    "Account is disabled",
+                    auditService.getClientIp(request),
+                    auditService.getUserAgent(request)
+            );
             throw e;
-        } catch (org.springframework.security.authentication.BadCredentialsException e) {
-            // Catch only actual wrong password/email errors
+        } catch (BadCredentialsException e) {
+            auditService.logFailedEvent(
+                    "LOGIN",
+                    loginRequestDTO.email(),
+                    "Invalid credentials",
+                    auditService.getClientIp(request),
+                    auditService.getUserAgent(request)
+            );
             throw new BadCredentialsException("Invalid email or password");
         } catch (AuthenticationException e) {
-            // Catch any other generic auth errors
+            auditService.logFailedEvent(
+                    "LOGIN",
+                    loginRequestDTO.email(),
+                    "Authentication failed",
+                    auditService.getClientIp(request),
+                    auditService.getUserAgent(request)
+            );
             throw new BadCredentialsException("Authentication failed");
         }
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Safe cast
         if (!(authentication.getPrincipal() instanceof UserDetailsImpl userDetails)) {
             throw new UserDetailsNotFoundException("User details not found");
         }
 
-        // JWT generation check
         String jwtToken = Optional.ofNullable(jwtUtils.generateJwtTokenFromEmail(userDetails))
                 .orElseThrow(() -> new JwtGenerationException("Failed to generate JWT token"));
 
-        // Create the Refresh Token for the DB
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getEmail());
+
+        User user = userRepository.findByEmail(userDetails.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        auditService.logEvent(
+                "LOGIN",
+                user,
+                true,
+                auditService.getClientIp(request),
+                auditService.getUserAgent(request),
+                "User logged in successfully"
+        );
 
         return new LoginResponseDTO(
                 jwtToken,
                 refreshToken.getToken(),
                 new UserResponse(
-                        Optional.ofNullable(userDetails.getId()).orElse(0L),   // safe id
+                        Optional.ofNullable(userDetails.getId()).orElse(0L),
                         userDetails.getUsername(),
-                        userDetails.getEmail(),     // This is the identifier
+                        userDetails.getEmail(),
                         userDetails.isEnabled(),
                         userDetails.getAuthorities()
                                 .stream()
@@ -241,6 +254,16 @@ public class AuthServiceImpl implements AuthService {
                 ));
     }
 
+    /**
+     * Refreshes the access token and generates a new refresh token for the user.
+     * The old refresh token is verified for validity and expiration, after which
+     * a new access token along with a new refresh token is provided.
+     *
+     * @param request the token refresh request containing the current refresh token
+     * @return a {@code LoginResponseDTO} containing the new access token, new refresh token,
+     * and user details
+     * @throws TokenRefreshException if the refresh token is not found in the database or is invalid
+     */
     @Override
     @Transactional
     public LoginResponseDTO refreshAccessToken(TokenRefreshRequest request) {
@@ -250,16 +273,10 @@ public class AuthServiceImpl implements AuthService {
                 .map(refreshTokenService::verifyExpiration)
                 .map(RefreshToken::getUser)
                 .map(user -> {
-                    // 1. Prepare UserDetails for JWT generation
                     UserDetailsImpl userDetails = UserDetailsImpl.build(user);
-
-                    // 2. Generate new short-lived Access Token
                     String newJwtToken = jwtUtils.generateJwtTokenFromEmail(userDetails);
-
-                    // 3. ROTATE: Generate new Refresh Token (Service logic deletes the old one)
                     RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getEmail());
 
-                    // 4. Return standard LoginResponseDTO
                     return new LoginResponseDTO(
                             newJwtToken,
                             newRefreshToken.getToken(),
@@ -277,16 +294,155 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Validate SignUpRequestDTO
+     * Logs out the user by revoking their refresh token and creating an audit log entry.
+     *
+     * @param refreshToken the refresh token to be revoked
+     * @param request      the HTTP request containing client information for audit logging
+     */
+    @Override
+    @Transactional
+    public void logout(String refreshToken, HttpServletRequest request) {
+        try {
+            RefreshToken token = refreshTokenService.findByToken(refreshToken)
+                    .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
+
+            User user = token.getUser();
+
+            // Revoke the token
+            refreshTokenService.revokeToken(refreshToken);
+
+            // Log successful logout
+            auditService.logEvent(
+                    "LOGOUT",
+                    user,
+                    true,
+                    auditService.getClientIp(request),
+                    auditService.getUserAgent(request),
+                    "User logged out successfully"
+            );
+
+        } catch (InvalidTokenException e) {
+            // Log failed logout attempt
+            auditService.logFailedEvent(
+                    "LOGOUT",
+                    "unknown",
+                    e.getMessage(),
+                    auditService.getClientIp(request),
+                    auditService.getUserAgent(request)
+            );
+            throw e;
+        }
+    }
+
+    /**
+     * Logs out the user from all devices by revoking all their refresh tokens.
+     *
+     * @param email   the email of the user
+     * @param request the HTTP request containing client information for audit logging
+     */
+    @Override
+    @Transactional
+    public void logoutAllDevices(String email, HttpServletRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        // Revoke all tokens for this user
+        refreshTokenService.revokeAllUserTokens(user);
+
+        // Log the action
+        auditService.logEvent(
+                "LOGOUT_ALL_DEVICES",
+                user,
+                true,
+                auditService.getClientIp(request),
+                auditService.getUserAgent(request),
+                "User logged out from all devices"
+        );
+    }
+    // ==========================================
+    // 3. PASSWORD RECOVERY
+    // ==========================================
+
+    /**
+     * Initiates the password reset process for a user by generating a one-time password (OTP)
+     * and sending it to the user's registered email address.
+     *
+     * @param email the email address of the user requesting the password reset
+     * @throws IllegalArgumentException  if the provided email is invalid
+     * @throws ResourceNotFoundException if no user is found with the specified email address
+     */
+    @Override
+    public void initiatePasswordReset(String email) {
+        validateEmailOnly(email);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        String otp = verificationService.createPasswordResetToken(user);
+        mailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), otp);
+    }
+
+    /**
+     * Resets the user's password based on the provided password reset request. This method validates the
+     * request, verifies the reset token, checks for expiry, and updates the user's password if all conditions
+     * are met. After successfully resetting the password, the reset token is deleted to avoid reuse.
+     *
+     * @param request The password reset request containing the user's email, one-time password (OTP),
+     *                and the new password to be set.
+     *                - email: The email address of the user requesting the password reset.
+     *                - otp: The one-time password or reset code sent to the user's email.
+     *                - newPassword: The new password the user wants to set.
+     * @throws ResourceNotFoundException If the user with the given email does not exist.
+     * @throws InvalidTokenException     If the provided reset token is invalid, does not belong to the user's
+     *                                   email, or has expired.
+     */
+    @Override
+    @Transactional
+    public void resetPassword(PasswordResetRequest request) {
+        User u = userRepository.findByEmail(request.email()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Map<String, String> fieldErrors = new HashMap<>();
+        validateSignUpRequest(u.getEmail(), request.email(), request.newPassword(), fieldErrors);
+
+        if (!fieldErrors.isEmpty()) throw new MultipleFieldValidationException(fieldErrors);
+
+        VerificationToken verificationToken = verificationTokenRepository
+                .findByTokenAndTokenType(request.otp(), "PASSWORD_RESET")
+                .orElseThrow(() -> new InvalidTokenException("Invalid reset code"));
+
+        if (!verificationToken.getUser().getEmail().equals(request.email())) {
+            throw new InvalidTokenException("This code was not issued for this email address");
+        }
+
+        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            verificationTokenRepository.delete(verificationToken);
+            throw new InvalidTokenException("Reset code has expired. Please request a new one.");
+        }
+
+        User user = verificationToken.getUser();
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
+        verificationTokenRepository.delete(verificationToken);
+    }
+
+    // ==========================================
+    // 4. VALIDATION HELPERS
+    // ==========================================
+
+    /**
+     * Validates the sign-up request by checking the provided username, email, and password
+     * against their respective validation policies. If validation errors are found, they are
+     * added to the provided fieldErrors map.
+     *
+     * @param username    the username provided in the sign-up request
+     * @param email       the email address provided in the sign-up request
+     * @param password    the password provided in the sign-up request
+     * @param fieldErrors a map where validation errors for each field are stored with field names as keys
      */
     private void validateSignUpRequest(String username, String email, String password, Map<String, String> fieldErrors) {
-        // Password validation
         List<String> passwordErrors = passwordPolicyValidator.validate(password, username);
         if (!passwordErrors.isEmpty()) {
             fieldErrors.put("password", String.join(", ", passwordErrors));
         }
 
-        // Email validation
         List<String> emailErrors = emailPolicyValidator.validate(email);
         if (!emailErrors.isEmpty()) {
             fieldErrors.put("email", String.join(", ", emailErrors));
@@ -294,7 +450,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * Helper method to validate email using existing policy
+     * Validates the provided email address against predefined email policy rules.
+     * If the email is invalid, an exception is thrown containing the validation errors.
+     *
+     * @param email the email address to be validated
+     * @throws MultipleFieldValidationException if the email is invalid, containing a map of error messages
      */
     private void validateEmailOnly(String email) {
         List<String> emailErrors = emailPolicyValidator.validate(email);
