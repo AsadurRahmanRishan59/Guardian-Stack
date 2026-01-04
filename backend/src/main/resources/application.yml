@@ -1,3 +1,7 @@
+# =========================================================
+# GUARDIAN STACK - MAIN APPLICATION CONFIGURATION
+# =========================================================
+
 server:
   port: 6060
   servlet:
@@ -11,7 +15,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/guardian_stack
     username: guardian_app_user
-    password: ${DB_PASSWORD:SecurePassword123} # Uses Env Var or default
+    password: ${DB_PASSWORD:SecurePassword123}
     driver-class-name: org.postgresql.Driver
 
   # JPA / Hibernate Settings
@@ -24,6 +28,8 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: public
+
+  # Async Thread Pool for Auditing/Tasks
   task:
     execution:
       pool:
@@ -32,12 +38,12 @@ spring:
         queue-capacity: 100
       thread-name-prefix: async-audit-
 
-  # Email Configuration (Ready for Phase 4)
+  # Email Configuration
   mail:
     host: smtp.gmail.com
     port: 587
-    username: rahmanrisan@gmail.com
-    password: lxajxzbpfzrvlbes
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -45,54 +51,92 @@ spring:
           starttls:
             enable: true
             required: true
-            connectiontimeout: 5000
-            timeout: 5000
-            writetimeout: 5000
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
-# Custom JWT Settings
+# =========================================================
+# CUSTOM APPLICATION SETTINGS (app.*)
+# =========================================================
 app:
   security:
+    # JWT & Session Management
     jwt:
       secret: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-      # Access Token: 15 Minutes (900,000 ms)
-      expiration-ms: 900000 # 1 day in milliseconds
+      expiration-ms: 900000 # 15 Minutes
       refresh-token:
-        # Refresh Token: 7 Days (604,800,000 ms)
-        expiration: 604800000
+        expiration: 604800000 # 7 Days
+    
     token-cleanup:
-      cron: 0 0  3 * * ?
-    audit-log:
-      retention-days: 90
+      cron: "0 0 3 * * ?" # Runs at 3 AM daily
+    
     account-lockout:
       max-attempts: 5
       duration-minutes: 30
 
+    # Role-Based Device Controls
+    multi-device:
+      master-admin:
+        enabled: false
+      admin:
+        max-devices: 2
+      employee:
+        max-devices: 2
+      customer:
+        max-devices: 5
+
+    # Role-Based Session Timeouts
+    session:
+      master-admin:
+        timeout: 900000
+      admin:
+        timeout: 1800000
+      employee:
+        timeout: 900000
+      customer:
+        timeout: 1800000
+
+    # Employee Governance
+    employee:
+      work-hours-only: false
+      allowed-hours-start: "09:00"
+      allowed-hours-end: "18:00"
+      default-contract-days: 365
+      password-rotation-days: 90
+
+    # Audit & Compliance
+    audit:
+      retention-days: 2555 # 7 Years
+      log-all-access: true
+      log-customer-data-access: true
+    
+    # Financial Security
+    payment:
+      require-active-session: true
+      reauth-threshold: 50000
+
+    # Threat Intelligence Alerts
+    alerts:
+      email-admin: true
+      admin-email: "security@yourinsurance.com"
+      max-failed-logins: 5
+      token-reuse-alert: true
+      unusual-location-alert: true
+
+  # Business Logic Logs
+  insurance:
+    log-document-access: true
+    log-pii-access: true
+    log-transaction-access: true
+
+  # Branding
   mail:
     from: noreply@guardianstack.com
     from-name: GuardianStack
 
-# ==========================================
-# LOGGING CONFIGURATION
-# ==========================================
-logging:
-  level:
-    root: INFO
-    com:
-      rishan:
-        guardianstack: DEBUG
-    org:
-      springframework:
-        security: DEBUG
-      hibernate:
-        SQL: DEBUG
-        type:
-          descriptor:
-            sql:
-              BasicBinder: TRACE
-
-# ==========================================
-# ACTUATOR ENDPOINTS (Health Check)
-# ==========================================
+# =========================================================
+# MONITORING & OBSERVABILITY
+# =========================================================
 management:
   endpoints:
     web:
@@ -105,3 +149,14 @@ management:
     export:
       prometheus:
         enabled: true
+
+# =========================================================
+# LOGGING VERBOSITY
+# =========================================================
+logging:
+  level:
+    root: INFO
+    com.rishan.guardianstack: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
