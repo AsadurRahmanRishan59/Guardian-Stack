@@ -33,7 +33,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
 
     @Bean
@@ -42,10 +42,12 @@ public class SecurityConfig {
         http.authorizeHttpRequests(requests ->
                 requests.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/public/**").permitAll()
-                        .requestMatchers("/admin/**").hasAnyRole("ADMIN","MASTER_ADMIN")
-                        .requestMatchers("/masteradmin/**").hasRole("MASTER_ADMIN")
-//                        .requestMatchers("/api/admin/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/auth/admin/**").hasAnyRole("ADMIN", "MASTER_ADMIN")
+                        .requestMatchers("/admin/**").hasAnyRole("ADMIN", "MASTER_ADMIN")
+                        .requestMatchers("/masteradmin/**").hasRole("MASTER_ADMIN")
+
                         .anyRequest().authenticated());
         http.exceptionHandling(exception ->
                 exception.authenticationEntryPoint(unauthorizedHandler)

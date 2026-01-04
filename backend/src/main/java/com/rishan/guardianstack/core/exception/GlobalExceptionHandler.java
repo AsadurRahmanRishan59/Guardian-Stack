@@ -249,4 +249,95 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
+
+    @ExceptionHandler(TokenReusedException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleTokenReusedException(TokenReusedException ex) {
+        log.error("🚨 Token reuse detected: {}", ex.getMessage());
+        ApiErrorResponse<Object> response = new ApiErrorResponse<>(
+                false,
+                ex.getMessage(),
+                HttpStatus.UNAUTHORIZED.value(),
+                null,
+                LocalDateTime.now()
+        );
+
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiErrorResponse<Object>> handleRateLimitExceededException(RateLimitExceededException ex) {
+        log.warn("Rate limit exceeded: {}", ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ApiErrorResponse<>(
+                        false,
+                        ex.getMessage(),
+                        HttpStatus.TOO_MANY_REQUESTS.value(),
+                        null,
+                        LocalDateTime.now()
+                ));
+    }
+
+    // Add these handlers to your GlobalExceptionHandler
+
+    @ExceptionHandler(AccountExpiredException.class)
+    public ResponseEntity<ApiErrorResponse<Map<String, Object>>> handleAccountExpiredException(
+            AccountExpiredException ex) {
+        log.warn("Account expired: {}", ex.getMessage());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("expiredOn", ex.getExpiredOn());
+        details.put("message", ex.getMessage());
+        details.put("action", "Please contact administrator to renew your account");
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(new ApiErrorResponse<>(
+                        false,
+                        ex.getMessage(),
+                        details,
+                        LocalDateTime.now()
+                ));
+    }
+
+    @ExceptionHandler(CredentialsExpiredException.class)
+    public ResponseEntity<ApiErrorResponse<Map<String, Object>>> handleCredentialsExpiredException(
+            CredentialsExpiredException ex) {
+        log.warn("Credentials expired: {}", ex.getMessage());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("expiredOn", ex.getExpiredOn());
+        details.put("message", ex.getMessage());
+        details.put("action", "Please reset your password to continue");
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(new ApiErrorResponse<>(
+                        false,
+                        ex.getMessage(),
+                        details,
+                        LocalDateTime.now()
+                ));
+    }
+
+    @ExceptionHandler(MustChangePasswordException.class)
+    public ResponseEntity<ApiErrorResponse<Map<String, Object>>> handleMustChangePasswordException(
+            MustChangePasswordException ex) {
+        log.info("User must change password: {}", ex.getEmail());
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("email", ex.getEmail());
+        details.put("message", ex.getMessage());
+        details.put("action", "You must change your password before proceeding");
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(new ApiErrorResponse<>(
+                        false,
+                        ex.getMessage(),
+                        details,
+                        LocalDateTime.now()
+                ));
+    }
 }

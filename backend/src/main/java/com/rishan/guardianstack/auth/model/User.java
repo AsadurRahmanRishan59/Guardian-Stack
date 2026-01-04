@@ -4,49 +4,45 @@ import com.rishan.guardianstack.core.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "gs_users")
+@Table(name = "gs_users", indexes = {
+        @Index(name = "idx_email", columnList = "email", unique = true),
+        @Index(name = "idx_username", columnList = "username"),
+        @Index(name = "idx_account_locked", columnList = "account_locked, locked_until"),
+        @Index(name = "idx_account_expiry", columnList = "account_expiry_date"),
+        @Index(name = "idx_credentials_expiry", columnList = "credentials_expiry_date"),
+        @Index(name = "idx_enabled_expiry", columnList = "enabled, account_expiry_date")
+})
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class User extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Long userId;
 
-    @Column(nullable = false)
-    private String username;
-
-    @Column(unique = true, length = 50)
+    @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false, length = 120)
+    @Column(nullable = false, length = 50)
+    private String username;
+
+    @Column(nullable = false, length = 255)
     private String password;
 
-    @Builder.Default
-    private boolean accountNonLocked = true;
-    @Builder.Default
-    private boolean accountNonExpired = true;
-    @Builder.Default
-    private boolean credentialsNonExpired = true;
-    @Builder.Default
-    private boolean enabled = true;
+    @Column(nullable = false)
+    private boolean enabled = false;
 
-    @Column(name = "credentials_expiry_date")
-    private LocalDate credentialsExpiryDate;
-
-    @Column(name = "account_expiry_date")
-    private LocalDate accountExpiryDate;
-
-    @Column(name = "sign_up_method")
     @Enumerated(EnumType.STRING)
+    @Column(name = "sign_up_method", length = 20)
     private SignUpMethod signUpMethod;
 
     @ManyToMany(fetch = FetchType.EAGER)
@@ -55,5 +51,256 @@ public class User extends BaseEntity {
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
+    @Builder.Default
     private Set<Role> roles = new HashSet<>();
+
+    // ==========================================
+    // ACCOUNT LOCKOUT FIELDS
+    // ==========================================
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "account_locked", nullable = false)
+    @Builder.Default
+    private boolean accountLocked = false;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    @Column(name = "last_failed_login")
+    private LocalDateTime lastFailedLogin;
+
+    @Column(name = "last_successful_login")
+    private LocalDateTime lastSuccessfulLogin;
+
+    // ==========================================
+    // ACCOUNT EXPIRY FIELDS (IMPORTANT FOR EMPLOYEES)
+    // ==========================================
+
+    /**
+     * Account expiry date
+     * Use cases:
+     * - Employee contracts (6 months, 1 year)
+     * - Temporary access for contractors
+     * - Trial accounts for public users
+     * - Subscription-based access
+     */
+    @Column(name = "account_expiry_date")
+    private LocalDateTime accountExpiryDate;
+
+    /**
+     * Credentials (password) expiry date
+     * Use cases:
+     * - Force password change for new employees
+     * - Temporary admin-generated passwords
+     * - 90-day password rotation policy
+     * - Security compliance requirements
+     */
+    @Column(name = "credentials_expiry_date")
+    private LocalDateTime credentialsExpiryDate;
+
+    /**
+     * Last password change date
+     * Used for tracking password age and policy enforcement
+     */
+    @Column(name = "last_password_change")
+    private LocalDateTime lastPasswordChange;
+
+    /**
+     * Flag to force password change on next login
+     * Set to true when:
+     * - Admin creates account with temporary password
+     * - Password reset by admin
+     * - Security policy violation
+     */
+    @Column(name = "must_change_password", nullable = false)
+    @Builder.Default
+    private boolean mustChangePassword = false;
+
+    // ==========================================
+    // SPRING SECURITY INTERFACE METHODS
+    // ==========================================
+
+    /**
+     * Checks if account is currently locked.
+     * Auto-unlocks if lock period has expired.
+     */
+    public boolean isAccountNonLocked() {
+        if (!accountLocked) {
+            return true;
+        }
+
+        // Check if lock period has expired
+        if (lockedUntil != null && LocalDateTime.now().isAfter(lockedUntil)) {
+            // Auto-unlock
+            accountLocked = false;
+            lockedUntil = null;
+            failedLoginAttempts = 0;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if account has expired
+     * Critical for employee/contractor accounts
+     */
+    public boolean isAccountNonExpired() {
+        if (accountExpiryDate == null) {
+            return true; // No expiry set (permanent account)
+        }
+
+        return LocalDateTime.now().isBefore(accountExpiryDate);
+    }
+
+    /**
+     * Checks if credentials (password) have expired
+     * Critical for security compliance
+     */
+    public boolean isCredentialsNonExpired() {
+        if (credentialsExpiryDate == null) {
+            return true; // No expiry set
+        }
+
+        return LocalDateTime.now().isBefore(credentialsExpiryDate);
+    }
+
+    // ==========================================
+    // ACCOUNT LOCKOUT HELPERS
+    // ==========================================
+
+    public void incrementFailedAttempts() {
+        this.failedLoginAttempts++;
+        this.lastFailedLogin = LocalDateTime.now();
+    }
+
+    public void resetFailedAttempts() {
+        this.failedLoginAttempts = 0;
+        this.lastFailedLogin = null;
+        this.accountLocked = false;
+        this.lockedUntil = null;
+        this.lastSuccessfulLogin = LocalDateTime.now();
+    }
+
+    public void lockAccount(int lockoutDurationMinutes) {
+        this.accountLocked = true;
+        this.lockedUntil = LocalDateTime.now().plusMinutes(lockoutDurationMinutes);
+    }
+
+    // ==========================================
+    // ACCOUNT EXPIRY HELPERS
+    // ==========================================
+
+    /**
+     * Set account expiry - for employees, contractors, trials
+     */
+    public void setAccountExpiry(int daysFromNow) {
+        this.accountExpiryDate = LocalDateTime.now().plusDays(daysFromNow);
+    }
+
+    /**
+     * Set password expiry - for temporary passwords, compliance
+     */
+    public void setPasswordExpiry(int daysFromNow) {
+        this.credentialsExpiryDate = LocalDateTime.now().plusDays(daysFromNow);
+        this.lastPasswordChange = LocalDateTime.now();
+    }
+
+    /**
+     * Update password with automatic expiry tracking
+     */
+    public void updatePassword(String newEncodedPassword, int passwordValidityDays) {
+        this.password = newEncodedPassword;
+        this.lastPasswordChange = LocalDateTime.now();
+        this.mustChangePassword = false; // Reset flag
+
+        if (passwordValidityDays > 0) {
+            this.credentialsExpiryDate = LocalDateTime.now().plusDays(passwordValidityDays);
+        } else {
+            this.credentialsExpiryDate = null; // No expiry
+        }
+    }
+
+    /**
+     * Check if password is about to expire (within warning days)
+     */
+    public boolean isPasswordExpiringWithinDays(int warningDays) {
+        if (credentialsExpiryDate == null) {
+            return false;
+        }
+
+        LocalDateTime warningDate = LocalDateTime.now().plusDays(warningDays);
+        return credentialsExpiryDate.isBefore(warningDate);
+    }
+
+    /**
+     * Get days until password expires (-1 if no expiry)
+     */
+    public long getDaysUntilPasswordExpiry() {
+        if (credentialsExpiryDate == null) {
+            return -1;
+        }
+
+        long days = java.time.temporal.ChronoUnit.DAYS.between(
+                LocalDateTime.now(),
+                credentialsExpiryDate
+        );
+
+        return Math.max(0, days); // Don't return negative
+    }
+
+    /**
+     * Get days until account expires (-1 if no expiry)
+     */
+    public long getDaysUntilAccountExpiry() {
+        if (accountExpiryDate == null) {
+            return -1;
+        }
+
+        long days = java.time.temporal.ChronoUnit.DAYS.between(
+                LocalDateTime.now(),
+                accountExpiryDate
+        );
+
+        return Math.max(0, days);
+    }
+
+    /**
+     * Extend account expiry - for contract renewals
+     */
+    public void extendAccountExpiry(int additionalDays) {
+        if (accountExpiryDate == null) {
+            this.accountExpiryDate = LocalDateTime.now().plusDays(additionalDays);
+        } else {
+            // Extend from current expiry date (not from now)
+            this.accountExpiryDate = this.accountExpiryDate.plusDays(additionalDays);
+        }
+    }
+
+    /**
+     * Check if user has a specific role
+     */
+    public boolean hasRole(AppRole role) {
+        return roles.stream()
+                .anyMatch(r -> r.getRoleName() == role);
+    }
+
+    /**
+     * Check if user is an employee (not public user)
+     */
+    public boolean isEmployee() {
+        return hasRole(AppRole.ROLE_EMPLOYEE) ||
+                hasRole(AppRole.ROLE_ADMIN) ||
+                hasRole(AppRole.ROLE_MASTER_ADMIN);
+    }
+
+    /**
+     * Check if user is public user
+     */
+    public boolean isPublicUser() {
+        return hasRole(AppRole.ROLE_USER) && !isEmployee();
+    }
 }

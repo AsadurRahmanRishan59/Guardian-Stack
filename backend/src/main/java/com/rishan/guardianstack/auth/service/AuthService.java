@@ -65,7 +65,7 @@ public interface AuthService {
      * @return a {@code LoginResponseDTO} containing the new access token, refresh token,
      * and updated user profile details after successful validation
      */
-    LoginResponseDTO refreshAccessToken(TokenRefreshRequest request);
+    LoginResponseDTO refreshAccessToken(TokenRefreshRequest request, HttpServletRequest httpRequest);
 
     /**
      * Logs out the user by revoking their refresh token.
@@ -107,5 +107,6 @@ public interface AuthService {
      */
     void resetPassword(PasswordResetRequest request);
 
-
+    // --- Account Security ---
+    void unlockAccount(String email);
 }

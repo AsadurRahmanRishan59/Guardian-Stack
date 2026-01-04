@@ -29,15 +29,23 @@ public class UserDetailsImpl implements UserDetails {
     @JsonIgnore
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
+
+    // Account status fields
     private final boolean accountNonLocked;
     private final boolean accountNonExpired;
     private final boolean credentialsNonExpired;
     private final boolean enabled;
+
+    // Audit fields from BaseEntity
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
     private final String createdBy;
     private final String updatedBy;
     private final Long version;
+
+    // Account lockout fields
+    private final int failedLoginAttempts;
+    private final LocalDateTime lockedUntil;
 
     public static UserDetailsImpl build(User user) {
 
@@ -57,7 +65,9 @@ public class UserDetailsImpl implements UserDetails {
                 user.getUpdatedAt(),
                 user.getCreatedBy(),
                 user.getUpdatedBy(),
-                user.getVersion()
+                user.getVersion(),
+                user.getFailedLoginAttempts(),
+                user.getLockedUntil()
         );
     }
 

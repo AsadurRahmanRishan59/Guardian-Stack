@@ -9,6 +9,7 @@ import com.rishan.guardianstack.auth.dto.response.UserResponse;
 import com.rishan.guardianstack.auth.service.AuthService;
 import com.rishan.guardianstack.auth.service.impl.UserDetailsImpl;
 import com.rishan.guardianstack.core.exception.UserDetailsNotFoundException;
+import com.rishan.guardianstack.core.ratelimit.RateLimited;
 import com.rishan.guardianstack.core.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/auth")
@@ -38,6 +40,7 @@ public class AuthController {
     // ==========================================
 
     @PostMapping("/public/signup")
+    @RateLimited(maxAttempts = 10, timeWindow = 1, unit = TimeUnit.HOURS)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(
             @Valid @RequestBody SignUpRequestDTO signUpRequest) {
         LoginResponseDTO response = authService.registerPublicUser(signUpRequest);
@@ -51,6 +54,7 @@ public class AuthController {
     }
 
     @PostMapping("/public/verify-otp")
+    @RateLimited(maxAttempts = 10, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> verifyOtp(
             @RequestParam String email,
             @RequestParam String otp) {
@@ -66,6 +70,7 @@ public class AuthController {
     }
 
     @PostMapping("/public/signin")
+    @RateLimited(maxAttempts = 5, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> signin(
             @Valid @RequestBody LoginRequestDTO loginRequestDTO,
             HttpServletRequest request) {
@@ -82,6 +87,7 @@ public class AuthController {
     }
 
     @PostMapping("/public/resend-otp")
+    @RateLimited(maxAttempts = 3, timeWindow = 10, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<String>> resendOtp(@RequestParam String email) {
         authService.resendVerificationCode(email);
         return ResponseEntity.ok(new ApiResponse<>(
@@ -93,6 +99,7 @@ public class AuthController {
     }
 
     @PostMapping("/public/forgot-password")
+    @RateLimited(maxAttempts = 3, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
             @Email(message = "Invalid Email") @RequestParam String email) {
 
@@ -106,6 +113,7 @@ public class AuthController {
     }
 
     @PostMapping("/public/reset-password")
+    @RateLimited(maxAttempts = 5, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody PasswordResetRequest request) {
 
@@ -119,10 +127,11 @@ public class AuthController {
     }
 
     @PostMapping("/public/refresh")
+    @RateLimited(maxAttempts = 20, timeWindow = 1, unit = TimeUnit.HOURS)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> refreshToken(
-            @Valid @RequestBody TokenRefreshRequest request) {
+            @Valid @RequestBody TokenRefreshRequest request, HttpServletRequest httpRequest) {
 
-        LoginResponseDTO response = authService.refreshAccessToken(request);
+        LoginResponseDTO response = authService.refreshAccessToken(request, httpRequest);
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
@@ -200,6 +209,24 @@ public class AuthController {
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 "Logged out from all devices successfully",
+                null,
+                LocalDateTime.now()
+        ));
+    }
+
+    /**
+     * Admin endpoint to unlock a user account
+     */
+    @PostMapping("/admin/unlock-account")
+    // @PreAuthorize("hasRole('ADMIN')") // Uncomment when you add Spring Security config
+    public ResponseEntity<ApiResponse<Void>> unlockAccount(
+            @RequestParam String email) {
+
+        authService.unlockAccount(email);
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Account unlocked successfully",
                 null,
                 LocalDateTime.now()
         ));

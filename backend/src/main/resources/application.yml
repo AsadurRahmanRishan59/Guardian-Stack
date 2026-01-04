@@ -63,3 +63,45 @@ app:
       cron: 0 0  3 * * ?
     audit-log:
       retention-days: 90
+    account-lockout:
+      max-attempts: 5
+      duration-minutes: 30
+
+  mail:
+    from: noreply@guardianstack.com
+    from-name: GuardianStack
+
+# ==========================================
+# LOGGING CONFIGURATION
+# ==========================================
+logging:
+  level:
+    root: INFO
+    com:
+      rishan:
+        guardianstack: DEBUG
+    org:
+      springframework:
+        security: DEBUG
+      hibernate:
+        SQL: DEBUG
+        type:
+          descriptor:
+            sql:
+              BasicBinder: TRACE
+
+# ==========================================
+# ACTUATOR ENDPOINTS (Health Check)
+# ==========================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
