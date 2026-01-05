@@ -1,41 +1,37 @@
 package com.rishan.guardianstack.masteradmin.user.dto;
 
 import jakarta.validation.constraints.*;
-import java.time.LocalDate;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.Set;
 
 public record CreateUserRequestDTO(
-        @NotBlank(message = "Official full name is required")
-        @Size(min = 3, max = 255, message = "Name must be between 3–255 characters")
-        @Pattern(
-                regexp = "^[a-zA-Z\\s.]+$",
-                message = "Name can only contain letters, spaces, and dots (e.g., Md. Karim)"
-        )
+        @NotBlank(message = "Username is required")
+        @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
         String username,
 
         @NotBlank(message = "Email is required")
         @Email(message = "Invalid email format")
-        @Size(max = 50, message = "Email must not exceed 50 characters")
+        @Size(max = 100)
         String email,
 
-        @NotBlank(message = "Password is required")
-        @Size(min = 8, message = "Password must be at least 8 characters long")
+        @NotBlank(message = "Temporary password is required")
+        @Size(min = 8, message = "Password must be at least 8 characters")
         String password,
 
-        // Security Status Flags
-        boolean accountNonLocked,
-        boolean accountNonExpired,
-        boolean credentialsNonExpired,
-        boolean enabled,
-
-        // Date-based policies (Master Admin can set expiry for temporary staff/contractors)
-        @FutureOrPresent(message = "Credentials expiry date must be in the present or future")
-        LocalDate credentialsExpiryDate,
-
-        @FutureOrPresent(message = "Account expiry date must be in the present or future")
-        LocalDate accountExpiryDate,
-
         @NotEmpty(message = "At least one role must be assigned")
-        List<@NotNull(message = "Role ID cannot be null") Integer> roleIds
+        Set<String> roleNames,
+
+        // --- COMPLIANCE & LIFECYCLE ---
+        @Future(message = "Account expiry must be in the future")
+        LocalDateTime accountExpiryDate, // Useful for contract employees
+
+        @Min(value = 1, message = "Initial password validity must be at least 1 day")
+        Integer passwordValidityDays, // Forces rotation after X days
+
+        // --- ADMINISTRATIVE FLAGS ---
+        boolean enabled, // Usually true by default for new employees
+
+
+        boolean mustChangePassword // Security Best Practice: Force change on first login
 ) {
 }

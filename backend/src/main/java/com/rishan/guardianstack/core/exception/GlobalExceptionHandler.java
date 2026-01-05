@@ -296,6 +296,7 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse<>(
                         false,
                         ex.getMessage(),
+                        HttpStatus.FORBIDDEN.value(),
                         details,
                         LocalDateTime.now()
                 ));
@@ -316,6 +317,7 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse<>(
                         false,
                         ex.getMessage(),
+                        HttpStatus.FORBIDDEN.value(),
                         details,
                         LocalDateTime.now()
                 ));
@@ -336,6 +338,7 @@ public class GlobalExceptionHandler {
                 .body(new ApiErrorResponse<>(
                         false,
                         ex.getMessage(),
+                        HttpStatus.FORBIDDEN.value(),
                         details,
                         LocalDateTime.now()
                 ));

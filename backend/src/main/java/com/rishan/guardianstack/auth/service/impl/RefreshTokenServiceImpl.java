@@ -1,5 +1,6 @@
 package com.rishan.guardianstack.auth.service.impl;
 
+import com.rishan.guardianstack.auth.model.AppRole;
 import com.rishan.guardianstack.auth.model.RefreshToken;
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.RefreshTokenRepository;
@@ -11,6 +12,7 @@ import com.rishan.guardianstack.core.exception.ResourceNotFoundException;
 import com.rishan.guardianstack.core.exception.TokenExpiredException;
 import com.rishan.guardianstack.core.exception.TokenReusedException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,10 +22,11 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
 
 @Service
 @RequiredArgsConstructor
@@ -37,93 +40,267 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Value("${app.security.jwt.refresh-token.expiration}")
     private Long refreshTokenDurationMs;
 
+    @Value("${app.security.multi-device.master-admin.enabled}")
+    private boolean masterAdminMultiDevice;
+
+    @Value("${app.security.multi-device.admin.max-devices}")
+    private int adminMaxDevices;
+
+    @Value("${app.security.multi-device.employee.max-devices}")
+    private int employeeMaxDevices;
+
+    @Value("${app.security.multi-device.customer.max-devices}")
+    private int customerMaxDevices;
+
     /**
-     * Creates a new refresh token with device information
+     * Creates refresh token with PESSIMISTIC LOCKING to prevent race conditions
+     * <p>
+     * ENHANCEMENT: Uses SERIALIZABLE isolation level and database-level locking
+     * to prevent concurrent login attempts from bypassing device limits
      */
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public RefreshToken createRefreshToken(String email, HttpServletRequest request) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Single session policy: delete old tokens
-        refreshTokenRepository.deleteByUser(user);
+        User user = userRepository.findByEmailForUpdate(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        DevicePolicy policy = getDevicePolicyForUser(user);
+
+        log.info("📱 Creating token for user: {} (Role: {}, Policy: {} devices max, Multi-device: {})", email, getUserPrimaryRole(user), policy.maxDevices(), policy.multiDeviceEnabled());
+
+        if (policy.multiDeviceEnabled()) {
+            return createRefreshTokenMultiDevice(user, request, policy.maxDevices());
+        } else {
+            return createRefreshTokenSingleDevice(user, request);
+        }
+    }
+
+    private DevicePolicy getDevicePolicyForUser(User user) {
+        if (user.hasRole(AppRole.ROLE_MASTER_ADMIN)) {
+            return new DevicePolicy(false, 1, "MASTER_ADMIN");
+        }
+
+        if (user.hasRole(AppRole.ROLE_ADMIN)) {
+            return new DevicePolicy(true, adminMaxDevices, "ADMIN");
+        }
+
+        if (user.hasRole(AppRole.ROLE_EMPLOYEE)) {
+            return new DevicePolicy(true, employeeMaxDevices, "EMPLOYEE");
+        }
+
+        return new DevicePolicy(true, customerMaxDevices, "CUSTOMER");
+    }
+
+    private RefreshToken createRefreshTokenSingleDevice(User user, HttpServletRequest request) {
+        int deleted = refreshTokenRepository.deleteByUser(user);
+        if (deleted > 0) {
+            log.warn("🔒 MASTER_ADMIN single device policy: Deleted {} existing token(s) for user: {}", deleted, user.getEmail());
+
+            auditService.logEvent("DEVICE_SESSION_REPLACED", user, true, request != null ? auditService.getClientIp(request) : "unknown", request != null ? auditService.getUserAgent(request) : "unknown", "Master Admin: Previous device session terminated (single device policy)");
+        }
         refreshTokenRepository.flush();
 
-        String deviceFingerprint = generateDeviceFingerprint(request);
-        String deviceName = parseDeviceName(request.getHeader("User-Agent"));
-
-        RefreshToken refreshToken = RefreshToken.builder().user(user).token(UUID.randomUUID().toString()).expiryDate(Instant.now().plusMillis(refreshTokenDurationMs)).createdAt(Instant.now()).revoked(false).ipAddress(auditService.getClientIp(request)).userAgent(request.getHeader("User-Agent")).deviceFingerprint(deviceFingerprint).deviceName(deviceName).build();
-
-        RefreshToken saved = refreshTokenRepository.save(refreshToken);
-        log.info("✓ Created new refresh token for user: {} from device: {}", email, deviceName);
-        return saved;
+        return buildAndSaveToken(user, request);
     }
 
     /**
-     * Rotates refresh token (creates new, revokes old) with reuse detection
+     * IMPROVEMENT #2: Race condition protection with atomic operations
+     */
+    private RefreshToken createRefreshTokenMultiDevice(User user, HttpServletRequest request, int maxDevices) {
+        String deviceFingerprint = generateDeviceFingerprint(request);
+
+        // Check if this device already has a token
+        Optional<RefreshToken> existingDeviceToken = refreshTokenRepository.findByUserAndDeviceFingerprint(user, deviceFingerprint);
+
+        if (existingDeviceToken.isPresent()) {
+            RefreshToken existing = existingDeviceToken.get();
+            log.info("🔄 Same device re-login: {} (user: {})", existing.getDeviceName(), user.getEmail());
+
+            refreshTokenRepository.delete(existing);
+            refreshTokenRepository.flush();
+        } else {
+            // IMPROVEMENT: Use FOR UPDATE to prevent race condition
+            // Lock all active tokens for this user during device limit check
+            long activeDevices = refreshTokenRepository.countActiveTokensByUserForUpdate(user, Instant.now());
+
+            if (activeDevices >= maxDevices) {
+                log.warn("⚠️ Max devices ({}) reached for user: {} (Role: {}). Removing oldest.", maxDevices, user.getEmail(), getUserPrimaryRole(user));
+
+                removeOldestToken(user);
+
+                auditService.logEvent("DEVICE_LIMIT_REACHED", user, true, request != null ? auditService.getClientIp(request) : "unknown", request != null ? auditService.getUserAgent(request) : "unknown", String.format("Device limit (%d) reached, oldest device removed", maxDevices));
+            }
+        }
+
+        return buildAndSaveToken(user, request);
+    }
+
+    private RefreshToken buildAndSaveToken(User user, HttpServletRequest request) {
+        String deviceFingerprint = generateDeviceFingerprint(request);
+        String deviceName = parseDeviceName(request != null ? request.getHeader("User-Agent") : null);
+        String ipAddress = request != null ? auditService.getClientIp(request) : "unknown";
+        String userAgent = request != null ? request.getHeader("User-Agent") : "unknown";
+
+        RefreshToken refreshToken = RefreshToken.builder().user(user).token(UUID.randomUUID().toString()).expiryDate(Instant.now().plusMillis(refreshTokenDurationMs)).createdAt(Instant.now()).revoked(false).ipAddress(ipAddress).userAgent(userAgent).deviceFingerprint(deviceFingerprint).deviceName(deviceName).build();
+
+        RefreshToken saved = refreshTokenRepository.save(refreshToken);
+
+        // IMPROVEMENT #3: Enhanced audit logging with device details
+        auditService.logEvent("DEVICE_TOKEN_CREATED", user, true, ipAddress, userAgent, String.format("Session created on %s (Fingerprint: %s, IP: %s)", deviceName, deviceFingerprint.substring(0, 12) + "...", ipAddress));
+
+        log.info("✓ Token created: User={}, Device={}, IP={}, Role={}, Fingerprint={}", user.getEmail(), deviceName, ipAddress, getUserPrimaryRole(user), deviceFingerprint.substring(0, 12) + "...");
+
+        return saved;
+    }
+
+    private void removeOldestToken(User user) {
+        List<RefreshToken> tokens = refreshTokenRepository.findByUserOrderByCreatedAtAsc(user);
+        if (!tokens.isEmpty()) {
+            RefreshToken oldest = tokens.getFirst();
+            String deviceName = oldest.getDeviceName();
+            String ipAddress = oldest.getIpAddress();
+
+            refreshTokenRepository.delete(oldest);
+
+            log.info("🗑️ Removed oldest device token: {} (IP: {}) for user: {}", deviceName, ipAddress, user.getEmail());
+
+            auditService.logEvent("DEVICE_TOKEN_AUTO_REMOVED", user, true, ipAddress, oldest.getUserAgent(), String.format("Oldest device (%s) removed due to device limit", deviceName));
+        }
+    }
+
+    // ==========================================
+    // IMPROVEMENT #3: Enhanced Token Reuse Detection with Forensic Logging
+    // ==========================================
+
+    /**
+     * Rotates refresh token with enhanced forensic logging for insurance compliance
+     * <p>
+     * ENHANCEMENT: Logs both the original token details AND the attacker's details
+     * to help forensic teams identify the source of the compromise
      */
     @Override
     @Transactional
     public RefreshToken rotateRefreshToken(String oldTokenString, User user, HttpServletRequest request) {
+
         RefreshToken oldToken = refreshTokenRepository.findByToken(oldTokenString).orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
 
-        // CRITICAL: Reuse Detection
+        // CRITICAL: Token Reuse Detection with Forensic Analysis
         if (oldToken.isRevoked()) {
-            log.error("🚨 SECURITY ALERT: Token reuse detected for user: {}", user.getEmail());
-            log.error("   Token ID: {}, Created: {}, Revoked: {}", oldToken.getId(), oldToken.getCreatedAt(), oldToken.getRevokedAt());
+            DevicePolicy policy = getDevicePolicyForUser(user);
 
-            // Nuclear option: Revoke ALL tokens for this user
-            int deletedCount = refreshTokenRepository.deleteByUser(user);
-            log.error("   Revoked {} tokens for security", deletedCount);
+            //  Detailed forensic logging
+            String originalIp = oldToken.getIpAddress();
+            String originalDevice = oldToken.getDeviceName();
+            String originalFingerprint = oldToken.getDeviceFingerprint();
+            Instant revokedAt = oldToken.getRevokedAt();
 
-            // Log security incident
-            auditService.logFailedEvent("REFRESH_TOKEN_REUSE_DETECTED", user.getEmail(), "Attempted to reuse already-rotated refresh token - possible token theft", auditService.getClientIp(request), auditService.getUserAgent(request));
+            String currentIp = request != null ? auditService.getClientIp(request) : "unknown";
+            String currentUserAgent = request != null ? auditService.getUserAgent(request) : "unknown";
+            String currentFingerprint = generateDeviceFingerprint(request);
 
-            throw new TokenReusedException("This refresh token has already been used. " + "For your security, all sessions have been terminated. " + "Please login again.");
+            // Forensic analysis
+            boolean sameDevice = originalFingerprint.equals(currentFingerprint);
+            boolean sameIp = originalIp.equals(currentIp);
+
+            log.error("🚨 SECURITY ALERT: TOKEN REUSE DETECTED!");
+            log.error("═══════════════════════════════════════════════════════════");
+            log.error("User: {}", user.getEmail());
+            log.error("Role: {}", getUserPrimaryRole(user));
+            log.error("───────────────────────────────────────────────────────────");
+            log.error("ORIGINAL TOKEN (Legitimate User):");
+            log.error("  - Device: {}", originalDevice);
+            log.error("  - IP: {}", originalIp);
+            log.error("  - Fingerprint: {}...", originalFingerprint.substring(0, 12));
+            log.error("  - Token Revoked At: {}", revokedAt);
+            log.error("───────────────────────────────────────────────────────────");
+            log.error("REUSE ATTEMPT (Potential Attacker):");
+            log.error("  - IP: {}", currentIp);
+            log.error("  - User-Agent: {}", currentUserAgent);
+            log.error("  - Fingerprint: {}...", currentFingerprint.substring(0, 12));
+            log.error("  - Attempt Time: {}", Instant.now());
+            log.error("───────────────────────────────────────────────────────────");
+            log.error("FORENSIC ANALYSIS:");
+            log.error("  - Same Device: {}", sameDevice ? "YES (Replay attack)" : "NO (Token stolen)");
+            log.error("  - Same IP: {}", sameIp ? "YES" : "NO");
+            log.error("  - Time Since Revocation: {} minutes", Duration.between(revokedAt, Instant.now()).toMinutes());
+            log.error("═══════════════════════════════════════════════════════════");
+
+            // Role-based response
+            if (policy.multiDeviceEnabled()) {
+                int revoked = refreshTokenRepository.deleteByUserAndDeviceFingerprint(user, oldToken.getDeviceFingerprint());
+                log.error("Action: Revoked {} token(s) for device: {}", revoked, oldToken.getDeviceName());
+            } else {
+                int revoked = refreshTokenRepository.deleteByUser(user);
+                log.error("Action: MASTER_ADMIN - Revoked ALL {} token(s)", revoked);
+            }
+
+            // Forensic audit log
+            String forensicDetails = String.format("TOKEN REUSE DETECTED | " + "Original Device: %s (IP: %s) | " + "Reuse Attempt From: IP=%s, UA=%s | " + "Same Device: %s, Same IP: %s | " + "Time Since Revocation: %d min", originalDevice, originalIp, currentIp, currentUserAgent, sameDevice, sameIp, Duration.between(revokedAt, Instant.now()).toMinutes());
+
+            auditService.logFailedEvent("TOKEN_REUSE_DETECTED", user.getEmail(), forensicDetails, currentIp, currentUserAgent);
+
+            // Additional alert for Master Admin (highest priority)
+            if (user.hasRole(AppRole.ROLE_MASTER_ADMIN)) {
+                auditService.logEvent("CRITICAL_SECURITY_BREACH_MASTER_ADMIN", user, false, currentIp, currentUserAgent, "CRITICAL: Master Admin token reuse detected - immediate investigation required");
+            }
+
+            throw new TokenReusedException("Security alert: This token was already used. " + (policy.multiDeviceEnabled() ? "This device has been logged out. " : "All devices have been logged out. ") + "Please login again. If this wasn't you, change your password immediately.");
         }
 
-        // Mark old token as revoked (keep for audit trail)
+
+        // Normal rotation
         oldToken.setRevoked(true);
         oldToken.setRevokedAt(Instant.now());
 
-        // Create new token with device info
-        String deviceFingerprint = generateDeviceFingerprint(request);
-        String deviceName = parseDeviceName(request.getHeader("User-Agent"));
+        RefreshToken newToken = RefreshToken.builder()
+                .user(user)
+                .token(UUID.randomUUID().toString())
+                .expiryDate(Instant.now().plusMillis(refreshTokenDurationMs))
+                .createdAt(Instant.now())
+                .revoked(false)
+                .ipAddress(oldToken.getIpAddress())
+                .userAgent(oldToken.getUserAgent())
+                .deviceFingerprint(oldToken.getDeviceFingerprint())
+                .deviceName(oldToken.getDeviceName())
+                .build();
 
-        RefreshToken newToken = RefreshToken.builder().user(user).token(UUID.randomUUID().toString()).expiryDate(Instant.now().plusMillis(refreshTokenDurationMs)).createdAt(Instant.now()).revoked(false).ipAddress(auditService.getClientIp(request)).userAgent(request.getHeader("User-Agent")).deviceFingerprint(deviceFingerprint).deviceName(deviceName).build();
-
-        // Link tokens (token family/chain)
         oldToken.setReplacedByToken(newToken.getToken());
 
-        // Save both
         refreshTokenRepository.save(oldToken);
         RefreshToken saved = refreshTokenRepository.save(newToken);
 
-        log.info("✓ Rotated refresh token for user: {} (Old: {}... → New: {}...)", user.getEmail(), oldTokenString.substring(0, 8), saved.getToken().substring(0, 8));
+        log.debug("✓ Token rotated: User={}, Device={}",
+                user.getEmail(), oldToken.getDeviceName());
 
         return saved;
     }
 
     @Override
     public RefreshToken verifyExpiration(RefreshToken token) {
-
         if (token.isRevoked()) {
-            log.warn("Attempted to use revoked token for user: {}", token.getUser().getEmail());
+            log.warn("⚠️ Revoked token used: User={}, Device={}",
+                    token.getUser().getEmail(),
+                    token.getDeviceName());
 
-            // Delete all tokens for this user (security measure)
-            refreshTokenRepository.deleteByUser(token.getUser());
+            DevicePolicy policy = getDevicePolicyForUser(token.getUser());
 
-            throw new TokenReusedException(
-                    "This refresh token was already used. " +
-                            "All sessions have been terminated for security."
-            );
+            if (policy.multiDeviceEnabled()) {
+                refreshTokenRepository.deleteByUserAndDeviceFingerprint(
+                        token.getUser(),
+                        token.getDeviceFingerprint()
+                );
+            } else {
+                refreshTokenRepository.deleteByUser(token.getUser());
+            }
+
+            throw new TokenReusedException("This token was already used.");
         }
 
         if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
             refreshTokenRepository.delete(token);
-            log.warn("Expired refresh token deleted for user: {}", token.getUser().getEmail());
-            throw new TokenExpiredException("Refresh token has expired. Please sign in again.");
+            throw new TokenExpiredException("Token has expired. Please sign in again.");
         }
+
         return token;
     }
 
@@ -135,23 +312,43 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     @Transactional
     public void revokeToken(String token) {
-        RefreshToken refreshToken = refreshTokenRepository.findByToken(token).orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(token)
+                .orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
 
         refreshTokenRepository.delete(refreshToken);
-        log.info("Revoked refresh token for user: {}", refreshToken.getUser().getEmail());
+
+        auditService.logEvent(
+                "DEVICE_LOGOUT",
+                refreshToken.getUser(),
+                true,
+                refreshToken.getIpAddress(),
+                refreshToken.getUserAgent(),
+                String.format("User logged out from %s", refreshToken.getDeviceName())
+        );
     }
 
     @Override
     @Transactional
     public void revokeAllUserTokens(User user) {
         int deleted = refreshTokenRepository.deleteByUser(user);
-        log.info("Revoked {} refresh token(s) for user: {}", deleted, user.getEmail());
+
+        auditService.logEvent(
+                "ALL_DEVICES_LOGOUT",
+                user,
+                true,
+                "system",
+                "system",
+                String.format("All %d device(s) logged out", deleted)
+        );
+
+        log.info("Revoked {} token(s) for user: {}", deleted, user.getEmail());
     }
 
     @Override
     @Transactional
     public void revokeAllUserTokens(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         revokeAllUserTokens(user);
     }
 
@@ -164,33 +361,40 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         return deleted;
     }
 
-    /**
-     * Scheduled job to clean up expired tokens daily at 3 AM
-     */
     @Scheduled(cron = "${app.security.token-cleanup.cron:0 0 3 * * ?}")
     @Transactional
-    public void scheduledCleanup() {
-        log.info("Starting scheduled cleanup of expired refresh tokens");
+    public void scheduledTokenCleanup() {
         cleanupExpiredTokens();
     }
 
-    /**
-     * Cleanup old revoked tokens (keep for 30 days audit trail)
-     */
     @Scheduled(cron = "${app.security.token-cleanup.cron:0 0 3 * * ?}")
     @Transactional
     public void scheduledRevokedTokenCleanup() {
-        Instant cutoff = Instant.now().minusSeconds(30 * 24 * 60 * 60); // 30 days
+        Instant cutoff = Instant.now().minusSeconds(30 * 24 * 60 * 60);
         int deleted = refreshTokenRepository.deleteRevokedTokensOlderThan(cutoff);
-        log.info("Cleaned up {} old revoked tokens (audit trail retention)", deleted);
+        log.info("Cleaned up {} old revoked tokens", deleted);
     }
 
     /**
-     * Generates device fingerprint from request
+     * Generate enhanced device fingerprint with client-side device ID
+     * <p>
+     * ENHANCEMENT: Includes X-Device-ID header from client to prevent
+     * corporate NAT collisions where multiple users share same IP + User-Agent
+     * <p>
+     * Format: SHA-256(IP + User-Agent + ClientDeviceID)
      */
     private String generateDeviceFingerprint(HttpServletRequest request) {
         try {
-            String data = String.format("%s|%s", auditService.getClientIp(request), request.getHeader("User-Agent"));
+            if (request == null) return "unknown";
+
+            String ip = auditService.getClientIp(request);
+            String userAgent = request.getHeader("User-Agent");
+
+            // ENHANCEMENT: Include client-side device ID if present
+            String clientDeviceId = request.getHeader("X-Device-ID");
+
+            // Build fingerprint data
+            String data = String.format("%s|%s|%s", ip != null ? ip : "unknown", userAgent != null ? userAgent : "unknown", clientDeviceId != null ? clientDeviceId : "no-client-id");
 
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
@@ -201,36 +405,39 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 if (hex.length() == 1) hexString.append('0');
                 hexString.append(hex);
             }
-            return hexString.toString();
+
+            String fingerprint = hexString.toString();
+
+            log.debug("Generated device fingerprint: {} (IP: {}, UA: {}, ClientID: {})", fingerprint.substring(0, 12) + "...", ip, userAgent != null ? userAgent.substring(0, Math.min(50, userAgent.length())) : "none", clientDeviceId != null ? "present" : "absent");
+
+            return fingerprint;
+
         } catch (Exception e) {
-            log.warn("Failed to generate device fingerprint", e);
-            return "unknown";
+            log.error("Failed to generate device fingerprint, using fallback", e);
+            return "fallback-" + UUID.randomUUID().toString();
         }
     }
 
-    /**
-     * Parses user agent to extract device name
-     */
     private String parseDeviceName(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return "Unknown Device";
-        }
+        if (userAgent == null || userAgent.isEmpty()) return "Unknown Device";
 
-        // Simple parsing (you can use a library like UADetector for better results)
-        if (userAgent.contains("Windows")) {
-            return "Windows PC";
-        } else if (userAgent.contains("Mac")) {
-            return "Mac";
-        } else if (userAgent.contains("iPhone")) {
-            return "iPhone";
-        } else if (userAgent.contains("iPad")) {
-            return "iPad";
-        } else if (userAgent.contains("Android")) {
-            return "Android Device";
-        } else if (userAgent.contains("Linux")) {
-            return "Linux PC";
-        }
+        if (userAgent.contains("Windows")) return "Windows PC";
+        else if (userAgent.contains("Mac")) return "Mac";
+        else if (userAgent.contains("iPhone")) return "iPhone";
+        else if (userAgent.contains("iPad")) return "iPad";
+        else if (userAgent.contains("Android")) return "Android Device";
+        else if (userAgent.contains("Linux")) return "Linux PC";
 
         return "Unknown Device";
+    }
+
+    private String getUserPrimaryRole(User user) {
+        if (user.hasRole(AppRole.ROLE_MASTER_ADMIN)) return "MASTER_ADMIN";
+        if (user.hasRole(AppRole.ROLE_ADMIN)) return "ADMIN";
+        if (user.hasRole(AppRole.ROLE_EMPLOYEE)) return "EMPLOYEE";
+        return "CUSTOMER";
+    }
+
+    private record DevicePolicy(boolean multiDeviceEnabled, int maxDevices, String roleType) {
     }
 }

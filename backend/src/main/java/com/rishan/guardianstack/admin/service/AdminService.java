@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -31,10 +32,10 @@ public class AdminService {
     private final MailService mailService;
     private final AuditService auditService;
 
-    @Value("${app.security.employee.default-contract-days:365}")
+    @Value("${app.security.employee.default-contract-days}")
     private int defaultContractDays;
 
-    @Value("${app.security.employee.temp-password-expiry-days:7}")
+    @Value("${app.security.employee.temp-password-expiry-days}")
     private int tempPasswordExpiryDays;
 
     @Value("${app.security.employee.password-rotation-days:90}")

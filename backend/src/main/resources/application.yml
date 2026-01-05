@@ -103,6 +103,7 @@ app:
       allowed-hours-end: "18:00"
       default-contract-days: 365
       password-rotation-days: 90
+      temp-password-expiry-days: 7
 
     # Audit & Compliance
     audit:
