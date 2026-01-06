@@ -19,7 +19,7 @@ public record CreateUserRequestDTO(
         String password,
 
         @NotEmpty(message = "At least one role must be assigned")
-        Set<String> roleNames,
+        Set<Integer> roleIds,
 
         // --- COMPLIANCE & LIFECYCLE ---
         @Future(message = "Account expiry must be in the future")

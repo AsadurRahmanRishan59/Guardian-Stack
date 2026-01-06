@@ -29,14 +29,16 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     // Useful for profile updates (ignore current user)
     Optional<User> findByEmailAndUserIdNot(String email, Long id);
 
-    List<User> findUsersWithExpiringAccounts(int warningDays);
-    List<User> findUsersWithExpiringCredentials(int warningDays);
+    @Query("SELECT u FROM User u WHERE u.accountExpiryDate IS NOT NULL AND u.accountExpiryDate <= :threshold")
+    List<User> findUsersWithExpiringAccounts(@Param("threshold") LocalDateTime threshold);
+
+    @Query("SELECT u FROM User u WHERE u.credentialsExpiryDate IS NOT NULL AND u.credentialsExpiryDate <= :threshold")
+    List<User> findUsersWithExpiringCredentials(@Param("threshold") LocalDateTime threshold);
+
+    @Query("SELECT u FROM User u WHERE u.accountExpiryDate IS NOT NULL AND u.accountExpiryDate < CURRENT_TIMESTAMP")
     List<User> findExpiredAccounts();
 
-    /**
-     * Find all users with expired credentials (passwords)
-     */
-    @Query("SELECT u FROM User u WHERE u.credentialsExpiryDate < CURRENT_TIMESTAMP")
+    @Query("SELECT u FROM User u WHERE u.credentialsExpiryDate IS NOT NULL AND u.credentialsExpiryDate < CURRENT_TIMESTAMP")
     List<User> findUsersWithExpiredCredentials();
 
 }

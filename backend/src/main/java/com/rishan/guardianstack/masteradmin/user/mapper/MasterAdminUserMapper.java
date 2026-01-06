@@ -6,11 +6,13 @@ import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.masteradmin.user.dto.CreateUserRequestDTO;
 import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserDTO;
 import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserViewDTO;
+import com.rishan.guardianstack.masteradmin.user.dto.UpdateUserRequestDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 @Component
@@ -91,28 +93,49 @@ public class MasterAdminUserMapper {
         );
     }
 
-    public void updateUser(User user, CreateUserRequestDTO dto, Set<Role> roles) {
+    public void updateUser(User user, UpdateUserRequestDTO dto, Set<Role> roles) {
+        // 1. Basic Identity & Access
         user.setUsername(dto.username());
-        if (dto.password() != null) user.setPassword(passwordEncoder.encode(dto.password()));
         user.setEmail(dto.email());
-        user.setEnabled(dto.enabled());
-        user.setMustChangePassword(dto.mustChangePassword());
-        user.setAccountExpiryDate(dto.accountExpiryDate());
-        user.setAccountNonLocked(dto.accountNonLocked());
-        user.setAccountNonExpired(dto.accountNonExpired());
-        user.setCredentialsNonExpired(dto.credentialsNonExpired());
-        user.setCredentialsExpiryDate(dto.credentialsExpiryDate());
-        user.setAccountExpiryDate(dto.accountExpiryDate());
         user.setRoles(roles);
+        user.setEnabled(dto.enabled());
 
-        // Only update password if provided
+        // 2. Account Lifecycle (Contract/Subscription)
+        user.setAccountExpiryDate(dto.accountExpiryDate());
+
+        // 3. Password & Compliance Logic
+        user.setMustChangePassword(dto.mustChangePassword());
+
         if (dto.password() != null && !dto.password().isBlank()) {
+            // Encode new password and record the change time
             user.setPassword(passwordEncoder.encode(dto.password()));
-            if (dto.passwordValidityDays() != null) {
+            user.setLastPasswordChange(LocalDateTime.now());
+
+            // Hierarchy for Credentials Expiry:
+            // Priority 1: Specific Date > Priority 2: Validity Days > Priority 3: System Default
+            if (dto.credentialsExpiryDate() != null) {
+                user.setCredentialsExpiryDate(dto.credentialsExpiryDate());
+            } else if (dto.passwordValidityDays() != null) {
                 user.setPasswordExpiry(dto.passwordValidityDays());
             } else {
                 user.setPasswordExpiry(tempPasswordExpiryDays);
             }
+        } else {
+            // If password ISN'T changing, but admin wants to manually extend the expiry date
+            if (dto.credentialsExpiryDate() != null) {
+                user.setCredentialsExpiryDate(dto.credentialsExpiryDate());
+            }
+        }
+
+        // 4. Lockout & Security Logic
+        // If the admin provides a lockedUntil date in the future, we force the lock state
+        user.setLockedUntil(dto.lockedUntil());
+
+        if (dto.lockedUntil() != null && dto.lockedUntil().isAfter(LocalDateTime.now())) {
+            user.setAccountLocked(true);
+        } else if (dto.lockedUntil() == null && user.isAccountLocked()) {
+            // Manual Unlock: If the admin clears the date, we fully reset the lockout state
+            user.resetFailedAttempts();
         }
     }
 }

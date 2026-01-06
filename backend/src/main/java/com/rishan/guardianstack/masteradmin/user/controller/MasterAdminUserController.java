@@ -3,10 +3,7 @@ package com.rishan.guardianstack.masteradmin.user.controller;
 import com.rishan.guardianstack.auth.model.SignUpMethod;
 import com.rishan.guardianstack.core.response.ApiResponse;
 import com.rishan.guardianstack.core.response.PaginatedResponse;
-import com.rishan.guardianstack.masteradmin.user.dto.CreateUserRequestDTO;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserDTO;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserSearchCriteria;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserViewDTO;
+import com.rishan.guardianstack.masteradmin.user.dto.*;
 import com.rishan.guardianstack.masteradmin.user.service.MasterAdminUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -92,7 +89,7 @@ public class MasterAdminUserController {
     @PutMapping("/{userId}")
     public ResponseEntity<ApiResponse<Void>> updateUser(
             @PathVariable Long userId,
-            @Valid @RequestBody CreateUserRequestDTO dto) {
+            @Valid @RequestBody UpdateUserRequestDTO dto) {
 
         masterAdminUserService.updateUser(dto, userId);
         return ResponseEntity.ok(

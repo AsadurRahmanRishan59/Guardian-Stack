@@ -304,7 +304,8 @@ public class AdminService {
      */
     @Transactional(readOnly = true)
     public List<User> getExpiringEmployees(int daysThreshold) {
-        return userRepository.findUsersWithExpiringAccounts(daysThreshold)
+        LocalDateTime threshold = LocalDateTime.now().plusDays(daysThreshold);
+        return userRepository.findUsersWithExpiringAccounts(threshold)
                 .stream()
                 .filter(User::isEmployee)
                 .toList();

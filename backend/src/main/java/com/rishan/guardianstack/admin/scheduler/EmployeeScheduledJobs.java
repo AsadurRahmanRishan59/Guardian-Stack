@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -29,8 +30,9 @@ public class EmployeeScheduledJobs {
     @Transactional
     public void notifyExpiringContracts() {
         log.info("🔍 Checking for expiring employee contracts...");
+        LocalDateTime threshold = LocalDateTime.now().plusDays(7);
 
-        List<User> expiringEmployees = userRepository.findUsersWithExpiringAccounts(7)
+        List<User> expiringEmployees = userRepository.findUsersWithExpiringAccounts(threshold)
                 .stream()
                 .filter(User::isEmployee)
                 .toList();
@@ -69,9 +71,9 @@ public class EmployeeScheduledJobs {
     @Transactional
     public void notifyExpiringPasswords() {
         log.info("🔍 Checking for expiring passwords...");
-
+        LocalDateTime threshold = LocalDateTime.now().plusDays(14);
         List<User> usersWithExpiringPasswords = userRepository
-                .findUsersWithExpiringCredentials(14)
+                .findUsersWithExpiringCredentials(threshold)
                 .stream()
                 .filter(User::isEmployee)
                 .toList();
@@ -192,15 +194,15 @@ public class EmployeeScheduledJobs {
     @Transactional(readOnly = true)
     public void sendWeeklyExpirationReport() {
         log.info("📊 Generating weekly expiration report...");
-
+        LocalDateTime threshold = LocalDateTime.now().plusDays(30);
         // Contracts expiring in next 30 days
-        List<User> expiringSoon = userRepository.findUsersWithExpiringAccounts(30)
+        List<User> expiringSoon = userRepository.findUsersWithExpiringAccounts(threshold)
                 .stream()
                 .filter(User::isEmployee)
                 .toList();
 
         // Passwords expiring in next 30 days
-        List<User> passwordsExpiringSoon = userRepository.findUsersWithExpiringCredentials(30)
+        List<User> passwordsExpiringSoon = userRepository.findUsersWithExpiringCredentials(threshold)
                 .stream()
                 .filter(User::isEmployee)
                 .toList();

@@ -10,10 +10,7 @@ import com.rishan.guardianstack.core.response.PaginatedResponse;
 import com.rishan.guardianstack.core.util.EmailPolicyValidator;
 import com.rishan.guardianstack.core.util.PasswordPolicyValidator;
 import com.rishan.guardianstack.masteradmin.user.MasterAdminUserSpecification;
-import com.rishan.guardianstack.masteradmin.user.dto.CreateUserRequestDTO;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserDTO;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserSearchCriteria;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserViewDTO;
+import com.rishan.guardianstack.masteradmin.user.dto.*;
 import com.rishan.guardianstack.masteradmin.user.mapper.MasterAdminUserMapper;
 import com.rishan.guardianstack.masteradmin.user.service.MasterAdminUserService;
 import jakarta.transaction.Transactional;
@@ -43,7 +40,7 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
      * @param searchCriteria the criteria for searching and filtering users, including
      *                       pagination, sorting, and filter parameters.
      * @return a {@code PaginatedResponse} containing the list of users in the form of
-     *         {@code MasterAdminUserViewDTO}, along with pagination and sorting metadata.
+     * {@code MasterAdminUserViewDTO}, along with pagination and sorting metadata.
      */
     @Override
     public PaginatedResponse<MasterAdminUserViewDTO> getAllUsers(MasterAdminUserSearchCriteria searchCriteria) {
@@ -89,91 +86,87 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
     public Long createUser(CreateUserRequestDTO dto) {
         Map<String, String> fieldErrors = new HashMap<>();
 
-        // 1. Full Validation for New User
-        validateEmailOnly(dto.email(), fieldErrors);
-        if (userRepository.existsByEmail(dto.email())) {
-            fieldErrors.put("email", "Email already exists");
-        }
-        validatePassword(dto, fieldErrors);
-
-        // 2. Validate Roles
-        Set<Role> roles = validateRoles(dto.roleIds(), fieldErrors);
+        validateEmailUniqueness(dto.email(), null, fieldErrors);
+        validatePasswordComplexity(dto.password(), dto.username(), fieldErrors);
+        Set<Role> roles = resolveRolesByIds(dto.roleIds(), fieldErrors);
 
         if (!fieldErrors.isEmpty()) {
             throw new MultipleFieldValidationException(fieldErrors);
         }
 
         User user = mapper.toUser(dto, roles);
-        User savedUser = userRepository.save(user);
-        return savedUser.getUserId();
+        return userRepository.save(user).getUserId();
     }
 
     @Override
     @Transactional
-    public Long updateUser(CreateUserRequestDTO dto, Long userId) {
+    public Long updateUser(UpdateUserRequestDTO dto, Long userId) {
         Map<String, String> fieldErrors = new HashMap<>();
 
-        // 1. Find User
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> {
-                    fieldErrors.put("userId", "No user found for id: " + userId);
-                    return new MultipleFieldValidationException(fieldErrors);
-                });
-
-        // 2. Validate Email (Unique check excluding current user)
-        validateEmailOnly(dto.email(), fieldErrors);
-        if (userRepository.existsByEmail(dto.email()) && !user.getEmail().equals(dto.email())) {
-            fieldErrors.put("email", "Email is already taken by another account");
-        }
-
-        // 3. Optional Password Validation (only if the password is provided/changed)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found for id: " + userId));
+        validateEmailUniqueness(dto.email(), user.getUserId(), fieldErrors);
         if (dto.password() != null && !dto.password().isBlank()) {
-            validatePassword(dto, fieldErrors);
+            validatePasswordComplexity(dto.password(), dto.username(), fieldErrors);
         }
-
-        // 4. Validate Roles
-        Set<Role> roles = validateRoles(dto.roleIds(), fieldErrors);
+        Set<Role> roles = resolveRolesByIds(dto.roleIds(), fieldErrors);
 
         if (!fieldErrors.isEmpty()) {
             throw new MultipleFieldValidationException(fieldErrors);
         }
 
-        // 5. Update and Save
         mapper.updateUser(user, dto, roles);
-        userRepository.save(user);
-        return user.getUserId();
+        return userRepository.save(user).getUserId();
     }
 
     // --- Helper Methods ---
 
-    private Set<Role> validateRoles(List<Integer> roleIds, Map<String, String> fieldErrors) {
-        Set<Role> roles = new HashSet<>();
-        if (roleIds == null || roleIds.isEmpty()) {
-            fieldErrors.put("roles", "At least one role must be assigned");
-            return roles;
+    private void validateEmailUniqueness(String email, Long currentUserId, Map<String, String> fieldErrors) {
+        List<String> emailErrors = emailPolicyValidator.validate(email);
+        if (!emailErrors.isEmpty()) {
+            fieldErrors.put("email", String.join(", ", emailErrors));
+            return;
         }
 
-        List<Integer> missingIds = new ArrayList<>();
-        roleIds.forEach(id -> roleRepository.findById(id).ifPresentOrElse(roles::add, () -> missingIds.add(id)));
-
-        if (!missingIds.isEmpty()) {
-            fieldErrors.put("roles", "Invalid Role IDs: " + missingIds);
-        }
-        return roles;
+        userRepository.findByEmail(email).ifPresent(existingUser -> {
+            if (!existingUser.getUserId().equals(currentUserId)) {
+                fieldErrors.put("email", "Email is already in use");
+            }
+        });
     }
 
-    private void validatePassword(CreateUserRequestDTO dto, Map<String, String> fieldErrors) {
-        List<String> passwordErrors = passwordPolicyValidator.validate(dto.password(), dto.username());
+    private void validatePasswordComplexity(String password, String username, Map<String, String> fieldErrors) {
+        if (password == null || password.isBlank()) {
+            fieldErrors.put("password", "Password cannot be empty");
+            return;
+        }
+
+        List<String> passwordErrors = passwordPolicyValidator.validate(password, username);
         if (!passwordErrors.isEmpty()) {
             fieldErrors.put("password", String.join(", ", passwordErrors));
         }
     }
 
-    private void validateEmailOnly(String email, Map<String, String> fieldErrors) {
-        List<String> emailErrors = emailPolicyValidator.validate(email);
-        if (!emailErrors.isEmpty()) {
-            fieldErrors.put("email", String.join(", ", emailErrors));
+    private Set<Role> resolveRolesByIds(Collection<Integer> roleIds, Map<String, String> fieldErrors) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            fieldErrors.put("roleIds", "At least one role must be assigned");
+            return Collections.emptySet();
         }
+
+        Set<Role> foundRoles = new HashSet<>();
+        List<Integer> missingIds = new ArrayList<>();
+
+        for (Integer id : roleIds) {
+            roleRepository.findById(id).ifPresentOrElse(
+                    foundRoles::add,
+                    () -> missingIds.add(id)
+            );
+        }
+
+        if (!missingIds.isEmpty()) {
+            fieldErrors.put("roleIds", "Invalid Role IDs: " + missingIds);
+        }
+        return foundRoles;
     }
 
     private Sort createSort(String sortBy, String sortDirection) {

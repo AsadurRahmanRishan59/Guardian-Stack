@@ -1,10 +1,7 @@
 package com.rishan.guardianstack.masteradmin.user.service;
 
 import com.rishan.guardianstack.core.response.PaginatedResponse;
-import com.rishan.guardianstack.masteradmin.user.dto.CreateUserRequestDTO;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserDTO;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserSearchCriteria;
-import com.rishan.guardianstack.masteradmin.user.dto.MasterAdminUserViewDTO;
+import com.rishan.guardianstack.masteradmin.user.dto.*;
 
 public interface MasterAdminUserService {
 
@@ -41,5 +38,5 @@ public interface MasterAdminUserService {
      * @param userId the unique identifier of the user to be updated
      * @return the unique identifier of the updated user
      */
-    Long updateUser(CreateUserRequestDTO dto, Long userId);
+    Long updateUser(UpdateUserRequestDTO dto, Long userId);
 }
