@@ -2,7 +2,7 @@ package com.rishan.guardianstack.admin.scheduler;
 
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.UserRepository;
-import com.rishan.guardianstack.auth.service.AuditService;
+import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.MailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ public class EmployeeScheduledJobs {
 
     private final UserRepository userRepository;
     private final MailService mailService;
-    private final AuditService auditService;
+    private final AuthAuditService authAuditService;
 
     /**
      * Notify employees of expiring contracts (7 days warning)
@@ -47,7 +47,7 @@ public class EmployeeScheduledJobs {
                     employee.getAccountExpiryDate()
             );
 
-            auditService.logEvent(
+            authAuditService.logEvent(
                     "CONTRACT_EXPIRY_WARNING",
                     employee,
                     true,
@@ -87,7 +87,7 @@ public class EmployeeScheduledJobs {
                     daysLeft
             );
 
-            auditService.logEvent(
+            authAuditService.logEvent(
                     "PASSWORD_EXPIRY_WARNING",
                     employee,
                     true,
@@ -128,7 +128,7 @@ public class EmployeeScheduledJobs {
                     employee.getAccountExpiryDate()
             );
 
-            auditService.logEvent(
+            authAuditService.logEvent(
                     "ACCOUNT_EXPIRED_AUTO_DISABLED",
                     employee,
                     false,
@@ -170,7 +170,7 @@ public class EmployeeScheduledJobs {
                     employee.getUsername()
             );
 
-            auditService.logEvent(
+            authAuditService.logEvent(
                     "PASSWORD_EXPIRED",
                     employee,
                     false,

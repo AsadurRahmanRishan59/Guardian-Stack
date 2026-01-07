@@ -5,7 +5,7 @@ import com.rishan.guardianstack.auth.model.RefreshToken;
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.RefreshTokenRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
-import com.rishan.guardianstack.auth.service.AuditService;
+import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.RefreshTokenService;
 import com.rishan.guardianstack.core.exception.InvalidTokenException;
 import com.rishan.guardianstack.core.exception.ResourceNotFoundException;
@@ -35,7 +35,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
-    private final AuditService auditService;
+    private final AuthAuditService authAuditService;
 
     @Value("${app.security.jwt.refresh-token.expiration}")
     private Long refreshTokenDurationMs;
@@ -96,7 +96,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         if (deleted > 0) {
             log.warn("🔒 MASTER_ADMIN single device policy: Deleted {} existing token(s) for user: {}", deleted, user.getEmail());
 
-            auditService.logEvent("DEVICE_SESSION_REPLACED", user, true, request != null ? auditService.getClientIp(request) : "unknown", request != null ? auditService.getUserAgent(request) : "unknown", "Master Admin: Previous device session terminated (single device policy)");
+            authAuditService.logEvent("DEVICE_SESSION_REPLACED", user, true, request != null ? authAuditService.getClientIp(request) : "unknown", request != null ? authAuditService.getUserAgent(request) : "unknown", "Master Admin: Previous device session terminated (single device policy)");
         }
         refreshTokenRepository.flush();
 
@@ -128,7 +128,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
                 removeOldestToken(user);
 
-                auditService.logEvent("DEVICE_LIMIT_REACHED", user, true, request != null ? auditService.getClientIp(request) : "unknown", request != null ? auditService.getUserAgent(request) : "unknown", String.format("Device limit (%d) reached, oldest device removed", maxDevices));
+                authAuditService.logEvent("DEVICE_LIMIT_REACHED", user, true, request != null ? authAuditService.getClientIp(request) : "unknown", request != null ? authAuditService.getUserAgent(request) : "unknown", String.format("Device limit (%d) reached, oldest device removed", maxDevices));
             }
         }
 
@@ -138,7 +138,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private RefreshToken buildAndSaveToken(User user, HttpServletRequest request) {
         String deviceFingerprint = generateDeviceFingerprint(request);
         String deviceName = parseDeviceName(request != null ? request.getHeader("User-Agent") : null);
-        String ipAddress = request != null ? auditService.getClientIp(request) : "unknown";
+        String ipAddress = request != null ? authAuditService.getClientIp(request) : "unknown";
         String userAgent = request != null ? request.getHeader("User-Agent") : "unknown";
 
         RefreshToken refreshToken = RefreshToken.builder().user(user).token(UUID.randomUUID().toString()).expiryDate(Instant.now().plusMillis(refreshTokenDurationMs)).createdAt(Instant.now()).revoked(false).ipAddress(ipAddress).userAgent(userAgent).deviceFingerprint(deviceFingerprint).deviceName(deviceName).build();
@@ -146,7 +146,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         RefreshToken saved = refreshTokenRepository.save(refreshToken);
 
         // IMPROVEMENT #3: Enhanced audit logging with device details
-        auditService.logEvent("DEVICE_TOKEN_CREATED", user, true, ipAddress, userAgent, String.format("Session created on %s (Fingerprint: %s, IP: %s)", deviceName, deviceFingerprint.substring(0, 12) + "...", ipAddress));
+        authAuditService.logEvent("DEVICE_TOKEN_CREATED", user, true, ipAddress, userAgent, String.format("Session created on %s (Fingerprint: %s, IP: %s)", deviceName, deviceFingerprint.substring(0, 12) + "...", ipAddress));
 
         log.info("✓ Token created: User={}, Device={}, IP={}, Role={}, Fingerprint={}", user.getEmail(), deviceName, ipAddress, getUserPrimaryRole(user), deviceFingerprint.substring(0, 12) + "...");
 
@@ -164,7 +164,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
             log.info("🗑️ Removed oldest device token: {} (IP: {}) for user: {}", deviceName, ipAddress, user.getEmail());
 
-            auditService.logEvent("DEVICE_TOKEN_AUTO_REMOVED", user, true, ipAddress, oldest.getUserAgent(), String.format("Oldest device (%s) removed due to device limit", deviceName));
+            authAuditService.logEvent("DEVICE_TOKEN_AUTO_REMOVED", user, true, ipAddress, oldest.getUserAgent(), String.format("Oldest device (%s) removed due to device limit", deviceName));
         }
     }
 
@@ -194,8 +194,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             String originalFingerprint = oldToken.getDeviceFingerprint();
             Instant revokedAt = oldToken.getRevokedAt();
 
-            String currentIp = request != null ? auditService.getClientIp(request) : "unknown";
-            String currentUserAgent = request != null ? auditService.getUserAgent(request) : "unknown";
+            String currentIp = request != null ? authAuditService.getClientIp(request) : "unknown";
+            String currentUserAgent = request != null ? authAuditService.getUserAgent(request) : "unknown";
             String currentFingerprint = generateDeviceFingerprint(request);
 
             // Forensic analysis
@@ -237,11 +237,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             // Forensic audit log
             String forensicDetails = String.format("TOKEN REUSE DETECTED | " + "Original Device: %s (IP: %s) | " + "Reuse Attempt From: IP=%s, UA=%s | " + "Same Device: %s, Same IP: %s | " + "Time Since Revocation: %d min", originalDevice, originalIp, currentIp, currentUserAgent, sameDevice, sameIp, Duration.between(revokedAt, Instant.now()).toMinutes());
 
-            auditService.logFailedEvent("TOKEN_REUSE_DETECTED", user.getEmail(), forensicDetails, currentIp, currentUserAgent);
+            authAuditService.logFailedEvent("TOKEN_REUSE_DETECTED", user.getEmail(), forensicDetails, currentIp, currentUserAgent);
 
             // Additional alert for Master Admin (highest priority)
             if (user.hasRole(AppRole.ROLE_MASTER_ADMIN)) {
-                auditService.logEvent("CRITICAL_SECURITY_BREACH_MASTER_ADMIN", user, false, currentIp, currentUserAgent, "CRITICAL: Master Admin token reuse detected - immediate investigation required");
+                authAuditService.logEvent("CRITICAL_SECURITY_BREACH_MASTER_ADMIN", user, false, currentIp, currentUserAgent, "CRITICAL: Master Admin token reuse detected - immediate investigation required");
             }
 
             throw new TokenReusedException("Security alert: This token was already used. " + (policy.multiDeviceEnabled() ? "This device has been logged out. " : "All devices have been logged out. ") + "Please login again. If this wasn't you, change your password immediately.");
@@ -317,7 +317,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         refreshTokenRepository.delete(refreshToken);
 
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "DEVICE_LOGOUT",
                 refreshToken.getUser(),
                 true,
@@ -332,7 +332,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     public void revokeAllUserTokens(User user) {
         int deleted = refreshTokenRepository.deleteByUser(user);
 
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "ALL_DEVICES_LOGOUT",
                 user,
                 true,
@@ -387,7 +387,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         try {
             if (request == null) return "unknown";
 
-            String ip = auditService.getClientIp(request);
+            String ip = authAuditService.getClientIp(request);
             String userAgent = request.getHeader("User-Agent");
 
             // ENHANCEMENT: Include client-side device ID if present

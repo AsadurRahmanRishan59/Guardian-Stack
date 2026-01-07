@@ -4,10 +4,12 @@ import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.model.VerificationToken;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
+import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.VerificationService;
 import com.rishan.guardianstack.core.exception.InvalidTokenException;
 import com.rishan.guardianstack.core.exception.TokenExpiredException;
 import com.rishan.guardianstack.core.exception.VerificationException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ public class VerificationServiceImpl implements VerificationService {
 
     private final VerificationTokenRepository tokenRepository;
     private final UserRepository userRepository;
+    private final AuthAuditService authAuditService;
 
     @Override
     @Transactional
@@ -56,33 +59,47 @@ public class VerificationServiceImpl implements VerificationService {
 
     @Override
     @Transactional
-    public User verifyToken(String email, String otp) {
-        VerificationToken verificationToken = tokenRepository.findByUserEmailAndToken(email, otp)
-                .orElseThrow(() -> new InvalidTokenException("Invalid verification code or email address"));
+    public User verifyToken(String email, String otp, HttpServletRequest request) {
+        try {
+            // 1. Find and Validate Token
+            VerificationToken verificationToken = tokenRepository.findByUserEmailAndToken(email, otp)
+                    .orElseThrow(() -> new InvalidTokenException("Invalid verification code"));
 
-        if (!verificationToken.getTokenType().equals("EMAIL_VERIFICATION")) {
-            throw new InvalidTokenException("Invalid token type");
+            // 2. State Checks
+            if (verificationToken.isExpired()) {
+                throw new TokenExpiredException("Token has expired");
+            }
+            if (verificationToken.getConfirmedAt() != null) {
+                throw new VerificationException("Email already verified");
+            }
+
+            User user = verificationToken.getUser();
+
+            // 3. ATOMIC UPDATE (The Practical Part)
+            // We link these two actions so they fail or succeed together
+            if ("EMAIL_VERIFICATION".equals(verificationToken.getTokenType())) {
+                user.setEnabled(true);
+                userRepository.save(user); // If this fails, the token update below rolls back
+            }
+
+            verificationToken.setConfirmedAt(LocalDateTime.now());
+            tokenRepository.save(verificationToken);
+
+            // Success is returned to AuthService, which handles the Success Audit
+            return user;
+
+        } catch (Exception e) {
+            // 4. Forensic Logging for Failures
+            authAuditService.logFailedEvent(
+                    "OTP_VERIFICATION_FAILED",
+                    email,
+                    e.getMessage(),
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request)
+            );
+            throw e;
         }
-
-        if (verificationToken.isExpired()) {
-            throw new TokenExpiredException("Token has expired");
-        }
-
-        if (verificationToken.getConfirmedAt() != null) {
-            throw new VerificationException("This email has already been verified");
-        }
-
-        // Success: Activate the user
-        User user = verificationToken.getUser();
-        user.setEnabled(true);
-        userRepository.save(user);
-
-        verificationToken.setConfirmedAt(LocalDateTime.now());
-        tokenRepository.save(verificationToken);
-
-        return user;
     }
-
     @Override
     @Transactional
     public String createPasswordResetToken(User user) {

@@ -231,11 +231,11 @@ COMMENT ON COLUMN public.gs_refresh_tokens.device_name IS 'Parsed device type (i
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- Table: gs_audit_logs
+-- Table: gs_auth_audit_logs
 -- Purpose: Comprehensive security audit trail (7-year retention for insurance)
 -- -----------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS public.gs_audit_logs
+CREATE TABLE IF NOT EXISTS public.gs_auth_audit_logs
 (
     id              BIGSERIAL PRIMARY KEY,
     event_type      VARCHAR(50)   NOT NULL,
@@ -259,8 +259,8 @@ CREATE TABLE IF NOT EXISTS public.gs_audit_logs
             ON DELETE SET NULL
 );
 
-COMMENT ON TABLE public.gs_audit_logs IS 'Security audit trail - 7 year retention for insurance compliance';
-COMMENT ON COLUMN public.gs_audit_logs.event_type IS 'LOGIN, LOGOUT, TOKEN_REUSE_DETECTED, ACCOUNT_LOCKED, etc.';
+COMMENT ON TABLE public.gs_auth_audit_logs IS 'Security audit trail - 7 year retention for insurance compliance';
+COMMENT ON COLUMN public.gs_auth_audit_logs.event_type IS 'LOGIN, LOGOUT, TOKEN_REUSE_DETECTED, ACCOUNT_LOCKED, etc.';
 
 -- =============================================================================
 -- STEP 6: INDEXES FOR PERFORMANCE
@@ -321,23 +321,23 @@ CREATE INDEX IF NOT EXISTS idx_gs_refresh_tokens_created
     ON public.gs_refresh_tokens (user_id, created_at);
 
 -- Audit logs (Critical for compliance queries)
-CREATE INDEX IF NOT EXISTS idx_gs_audit_logs_user_email
-    ON public.gs_audit_logs (user_email);
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_user_email
+    ON public.gs_auth_audit_logs (user_email);
 
-CREATE INDEX IF NOT EXISTS idx_gs_audit_logs_user_id
-    ON public.gs_audit_logs (user_id);
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_user_id
+    ON public.gs_auth_audit_logs (user_id);
 
-CREATE INDEX IF NOT EXISTS idx_gs_audit_logs_event_type
-    ON public.gs_audit_logs (event_type);
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_event_type
+    ON public.gs_auth_audit_logs (event_type);
 
-CREATE INDEX IF NOT EXISTS idx_gs_audit_logs_timestamp
-    ON public.gs_audit_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_timestamp
+    ON public.gs_auth_audit_logs (timestamp DESC);
 
-CREATE INDEX IF NOT EXISTS idx_gs_audit_logs_success
-    ON public.gs_audit_logs (success);
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_success
+    ON public.gs_auth_audit_logs (success);
 
-CREATE INDEX IF NOT EXISTS idx_gs_audit_logs_ip_address
-    ON public.gs_audit_logs (ip_address);
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_ip_address
+    ON public.gs_auth_audit_logs (ip_address);
 
 -- =============================================================================
 -- STEP 7: PERMISSIONS FOR APPLICATION USER
@@ -368,9 +368,9 @@ GRANT USAGE, SELECT ON SEQUENCE public.gs_verification_tokens_token_id_seq TO gu
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gs_refresh_tokens TO guardian_app_user;
 GRANT USAGE, SELECT ON SEQUENCE public.gs_refresh_tokens_token_id_seq TO guardian_app_user;
 
--- gs_audit_logs: Insert-only (append-only audit trail)
-GRANT SELECT, INSERT ON TABLE public.gs_audit_logs TO guardian_app_user;
-GRANT USAGE, SELECT ON SEQUENCE public.gs_audit_logs_id_seq TO guardian_app_user;
+-- gs_auth_audit_logs: Insert-only (append-only audit trail)
+GRANT SELECT, INSERT ON TABLE public.gs_auth_audit_logs TO guardian_app_user;
+GRANT USAGE, SELECT ON SEQUENCE public.gs_auth_audit_logs_id_seq TO guardian_app_user;
 
 -- =============================================================================
 -- STEP 8: SEED DATA - ROLES
@@ -509,7 +509,7 @@ SELECT event_type,
        failure_reason,
        timestamp,
        COUNT(*) OVER (PARTITION BY user_email, DATE(timestamp)) as daily_events
-FROM public.gs_audit_logs
+FROM public.gs_auth_audit_logs
 WHERE timestamp > NOW() - INTERVAL '7 days'
   AND event_type IN ('LOGIN', 'LOGOUT', 'TOKEN_REUSE_DETECTED', 'ACCOUNT_LOCKED')
 ORDER BY timestamp DESC;
@@ -526,10 +526,10 @@ ANALYZE public.gs_roles;
 ANALYZE public.gs_user_roles;
 ANALYZE public.gs_verification_tokens;
 ANALYZE public.gs_refresh_tokens;
-ANALYZE public.gs_audit_logs;
+ANALYZE public.gs_auth_audit_logs;
 
 -- Enable auto-vacuum for large tables (audit logs)
-ALTER TABLE public.gs_audit_logs
+ALTER TABLE public.gs_auth_audit_logs
     SET (
         autovacuum_enabled = true,
         autovacuum_vacuum_scale_factor = 0.1,

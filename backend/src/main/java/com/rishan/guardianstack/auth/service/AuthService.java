@@ -20,7 +20,7 @@ public interface AuthService {
      * @return a {@code LoginResponseDTO} containing the authentication details, including JWT token, refresh token,
      * and user profile information for the newly registered user.
      */
-    LoginResponseDTO registerPublicUser(SignUpRequestDTO request);
+    LoginResponseDTO registerPublicUser(SignUpRequestDTO request,HttpServletRequest httpRequest);
 
     /**
      * Verifies the provided one-time password (OTP) associated with the given email address
@@ -32,7 +32,7 @@ public interface AuthService {
      * @param otp   the one-time password provided by the user for verification
      * @return a {@code LoginResponseDTO} containing the authentication details if the verification is successful
      */
-    LoginResponseDTO verifyAndLogin(String email, String otp);
+    LoginResponseDTO verifyAndLogin(String email, String otp, HttpServletRequest httpRequest);
 
     /**
      * Resends the verification code to the specified email address. This method is typically
@@ -41,7 +41,7 @@ public interface AuthService {
      *
      * @param email the email address to which the verification code should be sent
      */
-    void resendVerificationCode(String email);
+    void resendVerificationCode(String email, HttpServletRequest httpRequest);
 
     // --- Session Management ---
 

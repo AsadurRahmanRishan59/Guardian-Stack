@@ -10,7 +10,7 @@ import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
-import com.rishan.guardianstack.auth.service.AuditService;
+import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.AuthService;
 import com.rishan.guardianstack.auth.service.MailService;
 import com.rishan.guardianstack.auth.service.RefreshTokenService;
@@ -53,7 +53,7 @@ public class AuthServiceImpl implements AuthService {
     private final MailService mailService;
     private final VerificationTokenRepository verificationTokenRepository;
     private final RefreshTokenService refreshTokenService;
-    private final AuditService auditService;
+    private final AuthAuditService authAuditService;
 
     @Value("${app.security.account-lockout.max-attempts}")
     private int maxLoginAttempts;
@@ -72,12 +72,19 @@ public class AuthServiceImpl implements AuthService {
      * @param request the sign-up request containing user registration details such as username, email, and password
      * @return a {@code LoginResponseDTO} containing user information and a null token indicating further OTP verification is required
      */
-    public LoginResponseDTO registerPublicUser(SignUpRequestDTO request) {
+    public LoginResponseDTO registerPublicUser(SignUpRequestDTO request, HttpServletRequest httpRequest) {
         Map<String, String> fieldErrors = new HashMap<>();
         validateSignUpRequest(request.username(), request.email(), request.password(), fieldErrors);
 
         if (userRepository.existsByEmail(request.email())) {
-            fieldErrors.put("email", "Email is already registered. Please login.");
+            authAuditService.logFailedEvent(
+                    "SIGNUP_FAILED",
+                    request.email(),
+                    "Attempted registration with existing email",
+                    authAuditService.getClientIp(httpRequest),
+                    authAuditService.getUserAgent(httpRequest)
+            );
+            fieldErrors.put("email", "Email is already registered.");
         }
 
         if (!fieldErrors.isEmpty()) {
@@ -99,10 +106,20 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         userRepository.save(user);
 
+        authAuditService.logEvent(
+                "SIGNUP_INITIATED",
+                user,
+                true, // Success
+                authAuditService.getClientIp(httpRequest), // You need to pass HttpServletRequest to the method
+                authAuditService.getUserAgent(httpRequest),
+                "Public self-registration started; awaiting OTP verification"
+        );
+
         String otp = verificationService.createToken(user);
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), otp);
 
         return new LoginResponseDTO(
+                null,
                 null,
                 null,
                 new UserResponse(
@@ -128,9 +145,18 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     @Transactional
-    public LoginResponseDTO verifyAndLogin(String email, String otp) {
+    public LoginResponseDTO verifyAndLogin(String email, String otp, HttpServletRequest httpRequest) {
         validateEmailOnly(email);
-        User user = verificationService.verifyToken(email, otp);
+        User user = verificationService.verifyToken(email, otp, httpRequest);
+
+        authAuditService.logEvent(
+                "EMAIL_VERIFIED_LOGIN",
+                user,
+                true,
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
+                "User successfully verified email via OTP and initiated first session"
+        );
 
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
         String jwtToken = jwtUtils.generateJwtTokenFromEmail(userDetails);
@@ -139,6 +165,7 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResponseDTO(
                 jwtToken,
                 refreshToken.getToken(),
+                null,
                 new UserResponse(
                         user.getUserId(),
                         user.getUsername(),
@@ -160,17 +187,36 @@ public class AuthServiceImpl implements AuthService {
      */
     @Override
     @Transactional
-    public void resendVerificationCode(String email) {
+    public void resendVerificationCode(String email, HttpServletRequest httpRequest) { // Added request
         validateEmailOnly(email);
+
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email, "email"));
 
         if (user.isEnabled()) {
+            // Log this as a failed/invalid attempt to resend
+            authAuditService.logFailedEvent(
+                    "RESEND_OTP_FAILED",
+                    email,
+                    "Account already verified",
+                    authAuditService.getClientIp(httpRequest),
+                    authAuditService.getUserAgent(httpRequest)
+            );
             throw new VerificationException("This account is already verified.");
         }
 
         String newOtp = verificationService.createToken(user);
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newOtp);
+
+        // Log the successful generation of a new token
+        authAuditService.logEvent(
+                "RESEND_OTP_SUCCESS",
+                user,
+                true,
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
+                "New verification OTP sent to email"
+        );
     }
 
     // ==========================================
@@ -189,6 +235,7 @@ public class AuthServiceImpl implements AuthService {
      * @throws JwtGenerationException       if an error occurs while generating the JWT token
      */
     @Override
+    @Transactional
     public @NonNull LoginResponseDTO signin(@NonNull LoginRequestDTO loginRequestDTO, HttpServletRequest request) {
         String email = loginRequestDTO.email();
 
@@ -197,12 +244,12 @@ public class AuthServiceImpl implements AuthService {
 
         // Check account lockout BEFORE authentication attempt
         if (user != null && user.isAccountLocked() && !user.isAccountNonLocked()) {
-            auditService.logFailedEvent(
+            authAuditService.logFailedEvent(
                     "LOGIN",
                     email,
                     "Account is locked until " + user.getLockedUntil(),
-                    auditService.getClientIp(request),
-                    auditService.getUserAgent(request)
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request)
             );
 
             throw new AccountLockedException(
@@ -215,12 +262,12 @@ public class AuthServiceImpl implements AuthService {
         if (user != null) {
             // Check account expiry
             if (!user.isAccountNonExpired()) {
-                auditService.logFailedEvent(
+                authAuditService.logFailedEvent(
                         "LOGIN",
                         email,
                         "Account has expired on " + user.getAccountExpiryDate(),
-                        auditService.getClientIp(request),
-                        auditService.getUserAgent(request)
+                        authAuditService.getClientIp(request),
+                        authAuditService.getUserAgent(request)
                 );
 
                 throw new AccountExpiredException(
@@ -232,12 +279,12 @@ public class AuthServiceImpl implements AuthService {
 
             // Check credentials expiry
             if (!user.isCredentialsNonExpired()) {
-                auditService.logFailedEvent(
+                authAuditService.logFailedEvent(
                         "LOGIN",
                         email,
                         "Password expired on " + user.getCredentialsExpiryDate(),
-                        auditService.getClientIp(request),
-                        auditService.getUserAgent(request)
+                        authAuditService.getClientIp(request),
+                        authAuditService.getUserAgent(request)
                 );
 
                 throw new CredentialsExpiredException(
@@ -256,12 +303,12 @@ public class AuthServiceImpl implements AuthService {
                     )
             );
         } catch (DisabledException e) {
-            auditService.logFailedEvent(
+            authAuditService.logFailedEvent(
                     "LOGIN",
                     email,
                     "Account is disabled",
-                    auditService.getClientIp(request),
-                    auditService.getUserAgent(request)
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request)
             );
             throw e;
         } catch (BadCredentialsException e) {
@@ -269,12 +316,12 @@ public class AuthServiceImpl implements AuthService {
             if (user != null) {
                 handleFailedLogin(user, request);
             }
-            auditService.logFailedEvent(
+            authAuditService.logFailedEvent(
                     "LOGIN",
                     email,
                     "Invalid credentials",
-                    auditService.getClientIp(request),
-                    auditService.getUserAgent(request)
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request)
             );
             throw new BadCredentialsException("Invalid email or password");
         } catch (AuthenticationException e) {
@@ -282,12 +329,12 @@ public class AuthServiceImpl implements AuthService {
                 handleFailedLogin(user, request);
             }
 
-            auditService.logFailedEvent(
+            authAuditService.logFailedEvent(
                     "LOGIN",
                     email,
-                    "Authentication failed",
-                    auditService.getClientIp(request),
-                    auditService.getUserAgent(request)
+                    e.getMessage(),
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request)
             );
             throw new BadCredentialsException("Authentication failed");
         }
@@ -308,18 +355,29 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new JwtGenerationException("Failed to generate JWT token"));
 
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getEmail(), request);
+
         // Check for expiring password (warn if < 14 days)
+        List<String> warnings = new ArrayList<>();
         if (user != null && user.isPasswordExpiringWithinDays(14)) {
             long daysLeft = user.getDaysUntilPasswordExpiry();
 
             log.warn("⚠️ Password expiring soon for user: {} ({} days left)",
                     user.getEmail(), daysLeft);
+            warnings.add("Your password will expire in " + daysLeft + " days. Please update it soon.");
 
             // Send warning email (async)
             mailService.sendPasswordExpiryWarning(
                     user.getEmail(),
                     user.getUsername(),
                     daysLeft
+            );
+            authAuditService.logEvent(
+                    "PASSWORD_EXPIRY_WARNING",
+                    user,
+                    true,
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request),
+                    "User warned: Password expires in " + user.getDaysUntilPasswordExpiry() + " days"
             );
         }
 
@@ -330,7 +388,7 @@ public class AuthServiceImpl implements AuthService {
 
             log.warn("⚠️ Account expiring soon for user: {} ({} days left)",
                     user.getEmail(), daysLeft);
-
+            warnings.add("Your account access will expire in " + daysLeft + " days.");
             // Send warning email (async)
             mailService.sendAccountExpiryWarning(
                     user.getEmail(),
@@ -344,6 +402,7 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResponseDTO(
                 jwtToken,
                 refreshToken.getToken(),
+                warnings,
                 new UserResponse(
                         Optional.ofNullable(userDetails.getId()).orElse(0L),
                         userDetails.getUsername(),
@@ -394,6 +453,7 @@ public class AuthServiceImpl implements AuthService {
                     return new LoginResponseDTO(
                             newJwtToken,
                             newRefreshToken.getToken(),
+                            null,
                             new UserResponse(
                                     user.getUserId(),
                                     user.getUsername(),
@@ -430,12 +490,12 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (InvalidTokenException e) {
             // Log failed logout attempt
-            auditService.logFailedEvent(
+            authAuditService.logFailedEvent(
                     "LOGOUT",
                     "unknown",
                     e.getMessage(),
-                    auditService.getClientIp(request),
-                    auditService.getUserAgent(request)
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request)
             );
             throw e;
         }
@@ -558,12 +618,12 @@ public class AuthServiceImpl implements AuthService {
             log.warn("🔒 Account locked for user: {} after {} failed attempts",
                     user.getEmail(), maxLoginAttempts);
 
-            auditService.logEvent(
+            authAuditService.logEvent(
                     "ACCOUNT_LOCKED",
                     user,
                     false,
-                    auditService.getClientIp(request),
-                    auditService.getUserAgent(request),
+                    authAuditService.getClientIp(request),
+                    authAuditService.getUserAgent(request),
                     String.format("Account locked after %d failed login attempts", maxLoginAttempts)
             );
         }
@@ -617,12 +677,12 @@ public class AuthServiceImpl implements AuthService {
      * Helper to audit authentication events
      */
     private void auditAuthEvent(String eventType, User user, HttpServletRequest request, String message) {
-        auditService.logEvent(
+        authAuditService.logEvent(
                 eventType,
                 user,
                 true,
-                auditService.getClientIp(request),
-                auditService.getUserAgent(request),
+                authAuditService.getClientIp(request),
+                authAuditService.getUserAgent(request),
                 message
         );
     }

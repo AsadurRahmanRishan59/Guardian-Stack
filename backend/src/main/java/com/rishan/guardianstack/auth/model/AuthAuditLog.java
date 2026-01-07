@@ -7,17 +7,13 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "gs_audit_logs", indexes = {
-        @Index(name = "idx_user_email", columnList = "user_email"),
-        @Index(name = "idx_event_type", columnList = "event_type"),
-        @Index(name = "idx_timestamp", columnList = "timestamp")
-})
+@Table(name = "gs_auth_audit_logs")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AuditLog {
+public class AuthAuditLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

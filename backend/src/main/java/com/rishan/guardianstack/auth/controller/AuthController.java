@@ -42,8 +42,8 @@ public class AuthController {
     @PostMapping("/public/signup")
     @RateLimited(maxAttempts = 10, timeWindow = 1, unit = TimeUnit.HOURS)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(
-            @Valid @RequestBody SignUpRequestDTO signUpRequest) {
-        LoginResponseDTO response = authService.registerPublicUser(signUpRequest);
+            @Valid @RequestBody SignUpRequestDTO signUpRequest, HttpServletRequest httpRequest) {
+        LoginResponseDTO response = authService.registerPublicUser(signUpRequest, httpRequest);
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
@@ -57,9 +57,9 @@ public class AuthController {
     @RateLimited(maxAttempts = 10, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> verifyOtp(
             @RequestParam String email,
-            @RequestParam String otp) {
+            @RequestParam String otp, HttpServletRequest httpRequest) {
 
-        LoginResponseDTO response = authService.verifyAndLogin(email, otp);
+        LoginResponseDTO response = authService.verifyAndLogin(email, otp, httpRequest);
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
@@ -88,8 +88,8 @@ public class AuthController {
 
     @PostMapping("/public/resend-otp")
     @RateLimited(maxAttempts = 3, timeWindow = 10, unit = TimeUnit.MINUTES)
-    public ResponseEntity<ApiResponse<String>> resendOtp(@RequestParam String email) {
-        authService.resendVerificationCode(email);
+    public ResponseEntity<ApiResponse<String>> resendOtp(@RequestParam String email, HttpServletRequest httpRequest) {
+        authService.resendVerificationCode(email,httpRequest);
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 "A new verification code has been sent to your email.",

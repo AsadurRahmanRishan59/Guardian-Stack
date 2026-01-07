@@ -1,8 +1,8 @@
 package com.rishan.guardianstack.auth.service;
 
-import com.rishan.guardianstack.auth.model.AuditLog;
+import com.rishan.guardianstack.auth.model.AuthAuditLog;
 import com.rishan.guardianstack.auth.model.User;
-import com.rishan.guardianstack.auth.repository.AuditLogRepository;
+import com.rishan.guardianstack.auth.repository.AuthAuditLogRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +16,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class AuditService {
+public class AuthAuditService {
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuthAuditLogRepository authAuditLogRepository;
 
     /**
      * Logs a security event asynchronously
@@ -28,7 +28,7 @@ public class AuditService {
     public void logEvent(String eventType, User user, boolean success,
                          String ipAddress, String userAgent, String additionalInfo) {
         try {
-            AuditLog auditLog = AuditLog.builder()
+            AuthAuditLog authAuditLog = AuthAuditLog.builder()
                     .eventType(eventType)
                     .userEmail(user != null ? user.getEmail() : null)
                     .userId(user != null ? user.getUserId() : null)
@@ -38,7 +38,7 @@ public class AuditService {
                     .additionalInfo(additionalInfo)
                     .build();
 
-            auditLogRepository.save(auditLog);
+            authAuditLogRepository.save(authAuditLog);
             log.info("Audit log created: {} for user: {}", eventType,
                     user != null ? user.getEmail() : "N/A");
         } catch (Exception e) {
@@ -54,7 +54,7 @@ public class AuditService {
     public void logFailedEvent(String eventType, String email, String failureReason,
                                String ipAddress, String userAgent) {
         try {
-            AuditLog auditLog = AuditLog.builder()
+            AuthAuditLog authAuditLog = AuthAuditLog.builder()
                     .eventType(eventType)
                     .userEmail(email)
                     .ipAddress(ipAddress)
@@ -63,7 +63,7 @@ public class AuditService {
                     .failureReason(failureReason)
                     .build();
 
-            auditLogRepository.save(auditLog);
+            authAuditLogRepository.save(authAuditLog);
             log.warn("Failed event logged: {} for email: {}", eventType, email);
         } catch (Exception e) {
             log.error("Failed to create audit log", e);
@@ -98,8 +98,8 @@ public class AuditService {
     /**
      * Get audit logs for a user
      */
-    public List<AuditLog> getUserAuditLogs(Long userId) {
-        return auditLogRepository.findByUserIdOrderByTimestampDesc(userId);
+    public List<AuthAuditLog> getUserAuditLogs(Long userId) {
+        return authAuditLogRepository.findByUserIdOrderByTimestampDesc(userId);
     }
 
     /**
@@ -108,6 +108,6 @@ public class AuditService {
     @Transactional
     public int cleanupOldLogs(int daysToKeep) {
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysToKeep);
-        return auditLogRepository.deleteOldLogs(cutoffDate);
+        return authAuditLogRepository.deleteOldLogs(cutoffDate);
     }
 }

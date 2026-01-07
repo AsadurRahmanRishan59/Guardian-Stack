@@ -5,7 +5,7 @@ import com.rishan.guardianstack.admin.dto.ExtendAccountRequest;
 import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
-import com.rishan.guardianstack.auth.service.AuditService;
+import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.MailService;
 import com.rishan.guardianstack.core.exception.MultipleFieldValidationException;
 import com.rishan.guardianstack.core.exception.ResourceNotFoundException;
@@ -30,7 +30,7 @@ public class AdminService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final MailService mailService;
-    private final AuditService auditService;
+    private final AuthAuditService authAuditService;
 
     @Value("${app.security.employee.default-contract-days}")
     private int defaultContractDays;
@@ -104,12 +104,12 @@ public class AdminService {
         );
 
         // Audit log
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "EMPLOYEE_CREATED",
                 savedEmployee,
                 true,
-                auditService.getClientIp(httpRequest),
-                auditService.getUserAgent(httpRequest),
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
                 String.format("Employee created with role: %s, contract: %d days",
                         role.getRoleName(), contractDays)
         );
@@ -147,12 +147,12 @@ public class AdminService {
         );
 
         // Audit log
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "CONTRACT_EXTENDED",
                 employee,
                 true,
-                auditService.getClientIp(httpRequest),
-                auditService.getUserAgent(httpRequest),
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
                 String.format("Contract extended by %d days, new expiry: %s",
                         request.additionalDays(),
                         employee.getAccountExpiryDate())
@@ -182,12 +182,12 @@ public class AdminService {
                 7
         );
 
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "PASSWORD_CHANGE_FORCED",
                 employee,
                 true,
-                auditService.getClientIp(httpRequest),
-                auditService.getUserAgent(httpRequest),
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
                 "Admin forced password change"
         );
 
@@ -220,12 +220,12 @@ public class AdminService {
         );
 
         // Audit log
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "PASSWORD_RESET_BY_ADMIN",
                 employee,
                 true,
-                auditService.getClientIp(httpRequest),
-                auditService.getUserAgent(httpRequest),
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
                 "Admin reset employee password"
         );
 
@@ -256,12 +256,12 @@ public class AdminService {
         );
 
         // Audit log
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "EMPLOYEE_DEACTIVATED",
                 employee,
                 true,
-                auditService.getClientIp(httpRequest),
-                auditService.getUserAgent(httpRequest),
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
                 "Reason: " + reason
         );
 
@@ -287,12 +287,12 @@ public class AdminService {
                 employee.getAccountExpiryDate()
         );
 
-        auditService.logEvent(
+        authAuditService.logEvent(
                 "EMPLOYEE_REACTIVATED",
                 employee,
                 true,
-                auditService.getClientIp(httpRequest),
-                auditService.getUserAgent(httpRequest),
+                authAuditService.getClientIp(httpRequest),
+                authAuditService.getUserAgent(httpRequest),
                 String.format("Reactivated with %d days contract", contractDays)
         );
 
