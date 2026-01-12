@@ -10,11 +10,9 @@ import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
-import com.rishan.guardianstack.auth.service.AuthAuditService;
-import com.rishan.guardianstack.auth.service.AuthService;
-import com.rishan.guardianstack.auth.service.MailService;
-import com.rishan.guardianstack.auth.service.RefreshTokenService;
+import com.rishan.guardianstack.auth.service.*;
 import com.rishan.guardianstack.core.exception.*;
+import com.rishan.guardianstack.core.logging.AuditEventType;
 import com.rishan.guardianstack.core.util.EmailPolicyValidator;
 import com.rishan.guardianstack.core.util.JwtUtils;
 import com.rishan.guardianstack.core.util.PasswordPolicyValidator;
@@ -53,7 +51,8 @@ public class AuthServiceImpl implements AuthService {
     private final MailService mailService;
     private final VerificationTokenRepository verificationTokenRepository;
     private final RefreshTokenService refreshTokenService;
-    private final AuthAuditService authAuditService;
+    //    private final AuthAuditService authAuditService;
+    private final ELKAuditService elkAuditService;
 
     @Value("${app.security.account-lockout.max-attempts}")
     private int maxLoginAttempts;
@@ -65,24 +64,24 @@ public class AuthServiceImpl implements AuthService {
     // 1. REGISTRATION & VERIFICATION
     // ==========================================
 
-    /**
-     * Registers a new public user by validating input, checking for email uniqueness, assigning a default role,
-     * saving the user to the database, and generating an OTP for email verification.
-     *
-     * @param request the sign-up request containing user registration details such as username, email, and password
-     * @return a {@code LoginResponseDTO} containing user information and a null token indicating further OTP verification is required
-     */
+    @Override
+    @Transactional
     public LoginResponseDTO registerPublicUser(SignUpRequestDTO request, HttpServletRequest httpRequest) {
         Map<String, String> fieldErrors = new HashMap<>();
         validateSignUpRequest(request.username(), request.email(), request.password(), fieldErrors);
 
         if (userRepository.existsByEmail(request.email())) {
-            authAuditService.logFailedEvent(
-                    "SIGNUP_FAILED",
+//            authAuditService.logFailedEvent(
+//                    "SIGNUP_FAILED",
+//                    request.email(),
+//                    "Attempted registration with existing email",
+//                    authAuditService.getClientIp(httpRequest),
+//                    authAuditService.getUserAgent(httpRequest)
+//            );
+            elkAuditService.logFailure(
+                    AuditEventType.SIGNUP_FAILED,
                     request.email(),
-                    "Attempted registration with existing email",
-                    authAuditService.getClientIp(httpRequest),
-                    authAuditService.getUserAgent(httpRequest)
+                    "Email already registered"
             );
             fieldErrors.put("email", "Email is already registered.");
         }

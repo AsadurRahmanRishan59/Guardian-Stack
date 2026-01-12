@@ -3,6 +3,7 @@ package com.rishan.guardianstack.auth.service;
 import com.rishan.guardianstack.auth.model.AuthAuditLog;
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.AuthAuditLogRepository;
+import com.rishan.guardianstack.core.logging.AuditLogEntry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,48 @@ import java.util.List;
 public class AuthAuditService {
 
     private final AuthAuditLogRepository authAuditLogRepository;
+
+    @Async
+    public void log(AuditLogEntry entry) {
+        logToConsole(entry);
+        if (entry.getEventType().shouldPersistToDatabase()) {
+
+        }
+    }
+
+    /**
+     * Structured console logging with appropriate log levels
+     */
+    private void logToConsole(AuditLogEntry entry) {
+        String formattedLog = entry.toFormattedString();
+
+        switch (entry.getEventType().getLevel()) {
+            case DEBUG -> log.debug(formattedLog);
+            case INFO -> log.info(formattedLog);
+            case WARN -> log.warn(formattedLog);
+            case CRITICAL -> log.error("🚨 SECURITY ALERT: {}", formattedLog);
+        }
+    }
+
+    @Transactional
+    protected void persistToDatabase(AuditLogEntry entry) {
+        try {
+            AuthAuditLog auditLog = AuthAuditLog.builder()
+                    .eventType(entry.getEventType().name())
+                    .userEmail(entry.getUserEmail())
+                    .userId(entry.getUserId())
+                    .ipAddress(entry.getSourceIp())
+                    .userAgent(entry.getUserAgent())
+//                    .success(entry.getOutcome()==)
+//                    .additionalInfo(entry.getAdditionalInfo())
+//                    .failureReason(entry.isSuccess() ? null : entry.getAdditionalInfo())
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to persist audit log to database: {}",
+                    entry.getEventType().name(), e);
+        }
+    }
+
 
     /**
      * Logs a security event asynchronously

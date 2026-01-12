@@ -1,24 +1,23 @@
 # =========================================================
-# GUARDIAN STACK - MAIN APPLICATION CONFIGURATION
+# GUARDIAN STACK - INFRASTRUCTURE
 # =========================================================
 
 server:
   port: 6060
   servlet:
     context-path: /api
+  shutdown: graceful # Recommended for SB4 to finish log shipping before exit
 
 spring:
   application:
     name: guardianstack
 
-  # Database Configuration
+  # Database & JPA
   datasource:
     url: jdbc:postgresql://localhost:5432/guardian_stack
     username: guardian_app_user
     password: ${DB_PASSWORD:SecurePassword123}
     driver-class-name: org.postgresql.Driver
-
-  # JPA / Hibernate Settings
   jpa:
     hibernate:
       ddl-auto: validate
@@ -27,16 +26,21 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        default_schema: public
 
-  # Async Thread Pool for Auditing/Tasks
+  # Elasticsearch (Direct API Access)
+  elasticsearch:
+    uris: http://localhost:9200
+    username: ${ELASTIC_USER:elastic}
+    password: ${ELASTIC_PASSWORD:changeme}
+
+  # Thread Pool for Async Auditing
   task:
     execution:
+      thread-name-prefix: audit-exec-
       pool:
-        core-size: 2
-        max-size: 5
-        queue-capacity: 100
-      thread-name-prefix: async-audit-
+        core-size: 4
+        max-size: 8
+        queue-capacity: 500
 
   # Email Configuration
   mail:
@@ -56,11 +60,10 @@ spring:
           writetimeout: 5000
 
 # =========================================================
-# CUSTOM APPLICATION SETTINGS (app.*)
+# GUARDIAN STACK - SECURITY & GOVERNANCE
 # =========================================================
 app:
   security:
-    # JWT & Session Management
     jwt:
       secret: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
       expiration-ms: 900000 # 15 Minutes
@@ -73,6 +76,14 @@ app:
     account-lockout:
       max-attempts: 5
       duration-minutes: 30
+
+    # Audit & Compliance
+    audit:
+      retention-days: 90
+      log-all-access: true
+      log-customer-data-access: true
+      cleanup:
+        cron: "0 0 3 * * ?" # Runs at 3 AM daily
 
     # Role-Based Device Controls
     multi-device:
@@ -105,17 +116,6 @@ app:
       password-rotation-days: 90
       temp-password-expiry-days: 7
 
-    # Audit & Compliance
-    audit:
-      retention-days: 2555 # 7 Years
-      log-all-access: true
-      log-customer-data-access: true
-    
-    # Financial Security
-    payment:
-      require-active-session: true
-      reauth-threshold: 50000
-
     # Threat Intelligence Alerts
     alerts:
       email-admin: true
@@ -136,8 +136,30 @@ app:
     from-name: GuardianStack
 
 # =========================================================
-# MONITORING & OBSERVABILITY
+# LOGGING & OBSERVABILITY
 # =========================================================
+logging:
+  level:
+    root: INFO
+    com.rishan.guardianstack: DEBUG
+    org.springframework.security: INFO
+    com.rishan.guardianstack.auth: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+  # File logging configuration
+  file:
+    name: logs/guardianstack.log
+    path: logs/
+  pattern:
+    console: logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) [%X{requestId}] - %msg%n
+
+  logback:
+    rollingpolicy:
+      max-file-size: 100MB
+      max-history: 30
+      total-size-cap: 1GB
+
 management:
   endpoints:
     web:
@@ -150,14 +172,3 @@ management:
     export:
       prometheus:
         enabled: true
-
-# =========================================================
-# LOGGING VERBOSITY
-# =========================================================
-logging:
-  level:
-    root: INFO
-    com.rishan.guardianstack: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
