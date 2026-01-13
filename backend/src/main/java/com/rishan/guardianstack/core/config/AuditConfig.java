@@ -1,5 +1,6 @@
 package com.rishan.guardianstack.core.config;
 
+import com.rishan.guardianstack.core.logging.MdcTaskDecorator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -38,7 +39,7 @@ public class AuditConfig {
 
     /**
      * Async executor for audit logging
-     * Prevents blocking main request thread when writing audit logs
+     * Prevents blocking the main request thread when writing audit logs
      */
     @Bean(name = "auditLogExecutor")
     public Executor auditLogExecutor() {
@@ -49,13 +50,14 @@ public class AuditConfig {
         executor.setThreadNamePrefix("audit-log-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
+        executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
         return executor;
     }
 
     /**
      * Async executor for email sending
-     * Prevents blocking main request thread when sending emails
+     * Prevents blocking the main request thread when sending emails
      */
     @Bean(name = "emailExecutor")
     public Executor emailExecutor() {

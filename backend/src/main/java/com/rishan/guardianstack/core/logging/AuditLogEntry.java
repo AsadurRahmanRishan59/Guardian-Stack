@@ -1,7 +1,5 @@
 package com.rishan.guardianstack.core.logging;
 
-
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.rishan.guardianstack.auth.model.User;
 import lombok.Builder;

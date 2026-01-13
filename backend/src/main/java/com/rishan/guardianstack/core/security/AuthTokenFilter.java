@@ -1,6 +1,7 @@
 package com.rishan.guardianstack.core.security;
 
 import com.rishan.guardianstack.auth.service.impl.UserDetailsServiceImpl;
+import com.rishan.guardianstack.core.logging.AuditContext;
 import com.rishan.guardianstack.core.util.JwtUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -38,6 +39,12 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 logger.debug("Roles from JWT : {}", userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                AuditContext.AuditMetadata metadata = AuditContext.get();
+                if (metadata != null) {
+                    metadata.updateUserId(email);
+                }
+
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception e) {

@@ -1,5 +1,6 @@
 package com.rishan.guardianstack.core.config;
 
+import com.rishan.guardianstack.core.logging.AuditContextFilter;
 import com.rishan.guardianstack.core.security.AuthEntryPointJwt;
 import com.rishan.guardianstack.core.security.AuthTokenFilter;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class SecurityConfig {
 
     private final AuthEntryPointJwt unauthorizedHandler;
     private final AuthTokenFilter authTokenFilter;
+    private final AuditContextFilter auditContextFilter;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
@@ -53,6 +55,7 @@ public class SecurityConfig {
                 exception.authenticationEntryPoint(unauthorizedHandler)
 
         );
+        http.addFilterBefore(auditContextFilter, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

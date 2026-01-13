@@ -29,40 +29,32 @@ import java.util.List;
 public class ELKAuditService {
 
     private final AuthAuditLogRepository authAuditLogRepository;
+    private final AuditDbWriter auditDbWriter;
 
-    /**
-     * Main logging method - routes to appropriate destinations
-     */
-    @Async
-    public void log(AuditLogEntry entry) {
-        // ALWAYS log to Elasticsearch (via structured JSON logging)
+    @Async("auditLogExecutor")
+    public void logSuccess(AuditEventType eventType, User user, String additionalInfo) {
+        AuditLogEntry entry = AuditLogEntry.success(eventType, user, additionalInfo);
+        processLog(entry); // Internal call is fine now because the "entry" was async
+    }
+
+    @Async("auditLogExecutor")
+    public void logFailure(AuditEventType eventType, String email, String reason) {
+        AuditLogEntry entry = AuditLogEntry.failure(eventType, email, reason);
+        processLog(entry);
+    }
+
+    private void processLog(AuditLogEntry entry) {
         if (entry.getEventType() != null &&
                 AuditEventType.valueOf(entry.getEventType()).shouldLogToElasticsearch()) {
             logToElasticsearch(entry);
         }
 
-        // SELECTIVELY persist to PostgreSQL (only critical events)
         if (entry.getEventType() != null &&
                 AuditEventType.valueOf(entry.getEventType()).shouldPersistToDatabase()) {
-            persistToDatabase(entry);
+            auditDbWriter.saveToDatabase(entry);
         }
     }
 
-    /**
-     * Convenience method for successful events
-     */
-    public void logSuccess(AuditEventType eventType, User user, String additionalInfo) {
-        AuditLogEntry entry = AuditLogEntry.success(eventType, user, additionalInfo);
-        log(entry);
-    }
-
-    /**
-     * Convenience method for failed events
-     */
-    public void logFailure(AuditEventType eventType, String email, String reason) {
-        AuditLogEntry entry = AuditLogEntry.failure(eventType, email, reason);
-        log(entry);
-    }
 
     /**
      * Log to Elasticsearch via Logstash (using structured JSON)
@@ -83,31 +75,6 @@ public class ELKAuditService {
             }
         } catch (Exception e) {
             log.error("Failed to log to Elasticsearch: {}", entry.getEventType(), e);
-        }
-    }
-
-    /**
-     * Persist critical events to PostgreSQL for compliance
-     */
-    @Transactional
-    protected void persistToDatabase(AuditLogEntry entry) {
-        try {
-            AuthAuditLog auditLog = AuthAuditLog.builder()
-                    .eventType(entry.getEventType())
-                    .userEmail(entry.getUserEmail())
-                    .userId(entry.getUserId())
-                    .ipAddress(entry.getSourceIp())
-                    .userAgent(entry.getUserAgent())
-                    .success("success".equals(entry.getOutcome()))
-                    .additionalInfo(entry.getMessage())
-                    .failureReason("failure".equals(entry.getOutcome()) ? entry.getMessage() : null)
-                    .build();
-
-            authAuditLogRepository.save(auditLog);
-
-        } catch (Exception e) {
-            log.error("Failed to persist audit log to database: {}",
-                    entry.getEventType(), e);
         }
     }
 
@@ -162,7 +129,7 @@ public class ELKAuditService {
 //    }
 
     /**
-     * Cleanup OLD PostgreSQL logs (keep only 90 days for compliance)
+     * Clean up OLD PostgreSQL logs (keep only 90 days for compliance)
      * Elasticsearch has its own retention policy (ILM)
      */
     @Scheduled(cron = "${app.security.audit.cleanup.cron:0 0 3 * * ?}")

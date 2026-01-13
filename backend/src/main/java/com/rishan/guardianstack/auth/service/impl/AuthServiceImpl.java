@@ -10,7 +10,10 @@ import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
 import com.rishan.guardianstack.auth.repository.VerificationTokenRepository;
-import com.rishan.guardianstack.auth.service.*;
+import com.rishan.guardianstack.auth.service.AuthService;
+import com.rishan.guardianstack.auth.service.ELKAuditService;
+import com.rishan.guardianstack.auth.service.MailService;
+import com.rishan.guardianstack.auth.service.RefreshTokenService;
 import com.rishan.guardianstack.core.exception.*;
 import com.rishan.guardianstack.core.logging.AuditEventType;
 import com.rishan.guardianstack.core.util.EmailPolicyValidator;
@@ -32,7 +35,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -49,9 +51,9 @@ public class AuthServiceImpl implements AuthService {
     private final EmailPolicyValidator emailPolicyValidator;
     private final VerificationServiceImpl verificationService;
     private final MailService mailService;
-//    private final VerificationTokenRepository verificationTokenRepository;
     private final RefreshTokenService refreshTokenService;
     private final ELKAuditService elkAuditService;
+    private final VerificationTokenRepository verificationTokenRepository;
 
     @Value("${app.security.account-lockout.max-attempts}")
     private int maxLoginAttempts;
@@ -452,61 +454,30 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void resetPassword(PasswordResetRequest request) {
-        User user = userRepository.findByEmail(request.email()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found", "email"));
 
         Map<String, String> fieldErrors = new HashMap<>();
-        validateSignUpRequest(user.getEmail(), request.email(), request.newPassword(), fieldErrors);
+        validateSignUpRequest(user.getUsername(), request.email(), request.newPassword(), fieldErrors);
 
         if (!fieldErrors.isEmpty()) {
-            elkAuditService.logFailure(
-                    AuditEventType.PASSWORD_RESET_FAILED,
-                    request.email(),
-                    "Validation failed"
-            );
+            elkAuditService.logFailure(AuditEventType.PASSWORD_RESET_FAILED, request.email(), "Policy validation failed");
             throw new MultipleFieldValidationException(fieldErrors);
         }
 
-        VerificationToken verificationToken = verificationTokenRepository
-                .findByTokenAndTokenType(request.otp(), "PASSWORD_RESET")
-                .orElseThrow(() -> {
-                    elkAuditService.logFailure(
-                            AuditEventType.PASSWORD_RESET_FAILED,
-                            request.email(),
-                            "Invalid OTP"
-                    );
-                    return new InvalidTokenException("Invalid reset code");
-                });
-
-        if (!verificationToken.getUser().getEmail().equals(request.email())) {
-            elkAuditService.logFailure(
-                    AuditEventType.PASSWORD_RESET_FAILED,
-                    request.email(),
-                    "OTP mismatch"
-            );
-            throw new InvalidTokenException("This code was not issued for this email address");
-        }
-
-        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
-            verificationTokenRepository.delete(verificationToken);
-            elkAuditService.logFailure(
-                    AuditEventType.PASSWORD_RESET_FAILED,
-                    request.email(),
-                    "OTP expired"
-            );
-            throw new InvalidTokenException("Reset code has expired.");
-        }
+        verificationService.verifyPasswordResetToken(request.email(), request.otp());
 
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         user.resetFailedAttempts();
-
         userRepository.save(user);
-        verificationTokenRepository.delete(verificationToken);
+
+        verificationTokenRepository.deleteByUserAndTokenType(user, TokenType.PASSWORD_RESET.name());
         refreshTokenService.revokeAllUserTokens(user);
 
         elkAuditService.logSuccess(
                 AuditEventType.PASSWORD_RESET_COMPLETED,
                 user,
-                "Password reset successful, all sessions terminated"
+                "Password reset successful"
         );
     }
     // ==========================================

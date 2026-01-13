@@ -40,7 +40,7 @@ public class AuditContext {
         private final String ipAddress;
         private final String userAgent;
         private final String requestId;
-        private final String userId;
+        private String userId;
         private final String sessionId;
         private final Map<String, String> customFields; // For ELK additional fields
 
@@ -55,16 +55,38 @@ public class AuditContext {
         }
 
         // Getters
-        public String getIpAddress() { return ipAddress; }
-        public String getUserAgent() { return userAgent; }
-        public String getRequestId() { return requestId; }
-        public String getUserId() { return userId; }
-        public String getSessionId() { return sessionId; }
-        public Map<String, String> getCustomFields() { return customFields; }
+        public String getIpAddress() {
+            return ipAddress;
+        }
+
+        public String getUserAgent() {
+            return userAgent;
+        }
+
+        public String getRequestId() {
+            return requestId;
+        }
+
+        public String getUserId() {
+            return userId;
+        }
+
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public Map<String, String> getCustomFields() {
+            return customFields;
+        }
 
         // For adding custom ELK fields
         public void addCustomField(String key, String value) {
             this.customFields.put(key, value);
+        }
+
+        public void updateUserId(String userId) {
+            this.userId = userId;
+            MDC.put("userId", userId != null ? userId : "anonymous");
         }
     }
 }

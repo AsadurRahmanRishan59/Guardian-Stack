@@ -24,7 +24,7 @@ public class MailServiceImpl implements MailService {
     private static final Logger log = LoggerFactory.getLogger(MailServiceImpl.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' hh:mm a");
 
-    @Async
+    @Async("emailExecutor")
     public void sendVerificationEmail(String to, String name, String otp) {
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
