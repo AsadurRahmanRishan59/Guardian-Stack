@@ -4,7 +4,8 @@ import com.rishan.guardianstack.auth.model.User;
 import jakarta.servlet.http.HttpServletRequest;
 
 public interface VerificationService {
-    String createToken(User user);
-    User verifyToken(String email, String otp, HttpServletRequest httpRequest);
+    String createEmailVerificationToken(User user);
+    User verifyEmailVerificationToken(String email, String otp);
+    User verifyPasswordResetToken(String email, String otp);
     String createPasswordResetToken(User user);
 }

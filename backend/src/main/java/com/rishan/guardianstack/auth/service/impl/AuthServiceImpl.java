@@ -49,9 +49,8 @@ public class AuthServiceImpl implements AuthService {
     private final EmailPolicyValidator emailPolicyValidator;
     private final VerificationServiceImpl verificationService;
     private final MailService mailService;
-    private final VerificationTokenRepository verificationTokenRepository;
+//    private final VerificationTokenRepository verificationTokenRepository;
     private final RefreshTokenService refreshTokenService;
-    //    private final AuthAuditService authAuditService;
     private final ELKAuditService elkAuditService;
 
     @Value("${app.security.account-lockout.max-attempts}")
@@ -71,13 +70,6 @@ public class AuthServiceImpl implements AuthService {
         validateSignUpRequest(request.username(), request.email(), request.password(), fieldErrors);
 
         if (userRepository.existsByEmail(request.email())) {
-//            authAuditService.logFailedEvent(
-//                    "SIGNUP_FAILED",
-//                    request.email(),
-//                    "Attempted registration with existing email",
-//                    authAuditService.getClientIp(httpRequest),
-//                    authAuditService.getUserAgent(httpRequest)
-//            );
             elkAuditService.logFailure(
                     AuditEventType.SIGNUP_FAILED,
                     request.email(),
@@ -105,16 +97,13 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         userRepository.save(user);
 
-        authAuditService.logEvent(
-                "SIGNUP_INITIATED",
+        elkAuditService.logSuccess(
+                AuditEventType.SIGNUP_INITIATED,
                 user,
-                true, // Success
-                authAuditService.getClientIp(httpRequest), // You need to pass HttpServletRequest to the method
-                authAuditService.getUserAgent(httpRequest),
-                "Public self-registration started; awaiting OTP verification"
+                "Registration started, awaiting email verification"
         );
 
-        String otp = verificationService.createToken(user);
+        String otp = verificationService.createEmailVerificationToken(user);
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), otp);
 
         return new LoginResponseDTO(
@@ -131,30 +120,16 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
-    /**
-     * Verifies the provided email and one-time password (OTP), authenticates the user,
-     * and generates a JWT token along with a refresh token for the session.
-     *
-     * @param email The email address of the user attempting to log in. This must adhere to
-     *              the application's email format and validation policies.
-     * @param otp   The one-time password (OTP) provided by the user for authentication.
-     * @return A {@code LoginResponseDTO} object containing the JWT token, refresh token,
-     * and user-specific details including user ID, username, email, enabled status,
-     * and role names.
-     */
     @Override
     @Transactional
     public LoginResponseDTO verifyAndLogin(String email, String otp, HttpServletRequest httpRequest) {
         validateEmailOnly(email);
-        User user = verificationService.verifyToken(email, otp, httpRequest);
+        User user = verificationService.verifyEmailVerificationToken(email, otp);
 
-        authAuditService.logEvent(
-                "EMAIL_VERIFIED_LOGIN",
+        elkAuditService.logSuccess(
+                AuditEventType.EMAIL_VERIFIED,
                 user,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                "User successfully verified email via OTP and initiated first session"
+                "Email verified, first login session created"
         );
 
         UserDetailsImpl userDetails = UserDetailsImpl.build(user);
@@ -175,46 +150,30 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
-    /**
-     * Resends a verification code to the user associated with the specified email address.
-     * If the user's account is already verified, an exception will be thrown.
-     *
-     * @param email the email address of the user to resend the verification code to.
-     *              Must be a valid and existing email in the system.
-     * @throws ResourceNotFoundException if no user is found with the specified email address.
-     * @throws VerificationException     if the user's account is already verified.
-     */
     @Override
     @Transactional
-    public void resendVerificationCode(String email, HttpServletRequest httpRequest) { // Added request
+    public void resendVerificationCode(String email, HttpServletRequest httpRequest) {
         validateEmailOnly(email);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email, "email"));
 
         if (user.isEnabled()) {
-            // Log this as a failed/invalid attempt to resend
-            authAuditService.logFailedEvent(
-                    "RESEND_OTP_FAILED",
+            elkAuditService.logFailure(
+                    AuditEventType.OTP_RESENT,
                     email,
-                    "Account already verified",
-                    authAuditService.getClientIp(httpRequest),
-                    authAuditService.getUserAgent(httpRequest)
+                    "Account already verified"
             );
             throw new VerificationException("This account is already verified.");
         }
 
-        String newOtp = verificationService.createToken(user);
+        String newOtp = verificationService.createEmailVerificationToken(user);
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newOtp);
 
-        // Log the successful generation of a new token
-        authAuditService.logEvent(
-                "RESEND_OTP_SUCCESS",
+        elkAuditService.logSuccess(
+                AuditEventType.OTP_RESENT,
                 user,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                "New verification OTP sent to email"
+                "New OTP generated"
         );
     }
 
@@ -222,33 +181,17 @@ public class AuthServiceImpl implements AuthService {
     // 2. SESSION MANAGEMENT (SIGN IN & REFRESH)
     // ==========================================
 
-    /**
-     * Authenticates a user by verifying their credentials and returns a response containing
-     * a JWT token, refresh token, and user details.
-     *
-     * @param loginRequestDTO an object containing the user's email and password for authentication
-     * @return a {@code LoginResponseDTO} containing a JWT token, refresh token, and user details
-     * @throws DisabledException            if the user's account is disabled
-     * @throws BadCredentialsException      if the authentication fails due to invalid email or password
-     * @throws UserDetailsNotFoundException if user details cannot be retrieved after authentication
-     * @throws JwtGenerationException       if an error occurs while generating the JWT token
-     */
     @Override
     @Transactional
     public @NonNull LoginResponseDTO signin(@NonNull LoginRequestDTO loginRequestDTO, HttpServletRequest request) {
         String email = loginRequestDTO.email();
-
-        // Get user
         User user = userRepository.findByEmail(email).orElse(null);
 
-        // Check account lockout BEFORE authentication attempt
         if (user != null && user.isAccountLocked() && !user.isAccountNonLocked()) {
-            authAuditService.logFailedEvent(
-                    "LOGIN",
+            elkAuditService.logFailure(
+                    AuditEventType.LOGIN_FAILED,
                     email,
-                    "Account is locked until " + user.getLockedUntil(),
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request)
+                    "Account locked until " + user.getLockedUntil()
             );
 
             throw new AccountLockedException(
@@ -259,14 +202,11 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (user != null) {
-            // Check account expiry
             if (!user.isAccountNonExpired()) {
-                authAuditService.logFailedEvent(
-                        "LOGIN",
+                elkAuditService.logFailure(
+                        AuditEventType.LOGIN_FAILED,
                         email,
-                        "Account has expired on " + user.getAccountExpiryDate(),
-                        authAuditService.getClientIp(request),
-                        authAuditService.getUserAgent(request)
+                        "Account expired on " + user.getAccountExpiryDate()
                 );
 
                 throw new AccountExpiredException(
@@ -276,16 +216,12 @@ public class AuthServiceImpl implements AuthService {
                 );
             }
 
-            // Check credentials expiry
             if (!user.isCredentialsNonExpired()) {
-                authAuditService.logFailedEvent(
-                        "LOGIN",
+                elkAuditService.logFailure(
+                        AuditEventType.LOGIN_FAILED,
                         email,
-                        "Password expired on " + user.getCredentialsExpiryDate(),
-                        authAuditService.getClientIp(request),
-                        authAuditService.getUserAgent(request)
+                        "Password expired on " + user.getCredentialsExpiryDate()
                 );
-
                 throw new CredentialsExpiredException(
                         "Your password expired on " + user.getCredentialsExpiryDate() +
                                 ". Please reset your password.",
@@ -302,25 +238,20 @@ public class AuthServiceImpl implements AuthService {
                     )
             );
         } catch (DisabledException e) {
-            authAuditService.logFailedEvent(
-                    "LOGIN",
+            elkAuditService.logFailure(
+                    AuditEventType.LOGIN_FAILED,
                     email,
-                    "Account is disabled",
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request)
+                    "Account is disabled"
             );
             throw e;
         } catch (BadCredentialsException e) {
-            // Increment failed attempts
             if (user != null) {
                 handleFailedLogin(user, request);
             }
-            authAuditService.logFailedEvent(
-                    "LOGIN",
+            elkAuditService.logFailure(
+                    AuditEventType.LOGIN_FAILED,
                     email,
-                    "Invalid credentials",
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request)
+                    "Invalid credentials"
             );
             throw new BadCredentialsException("Invalid email or password");
         } catch (AuthenticationException e) {
@@ -328,12 +259,10 @@ public class AuthServiceImpl implements AuthService {
                 handleFailedLogin(user, request);
             }
 
-            authAuditService.logFailedEvent(
-                    "LOGIN",
+            elkAuditService.logFailure(
+                    AuditEventType.LOGIN_FAILED,
                     email,
-                    e.getMessage(),
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request)
+                    e.getMessage()
             );
             throw new BadCredentialsException("Authentication failed");
         }
@@ -344,7 +273,6 @@ public class AuthServiceImpl implements AuthService {
             throw new UserDetailsNotFoundException("User details not found");
         }
 
-        // Reset failed attempts on successful login
         if (user != null) {
             user.resetFailedAttempts();
             userRepository.save(user);
@@ -355,29 +283,25 @@ public class AuthServiceImpl implements AuthService {
 
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getEmail(), request);
 
-        // Check for expiring password (warn if < 14 days)
         List<String> warnings = new ArrayList<>();
         if (user != null && user.isPasswordExpiringWithinDays(14)) {
             long daysLeft = user.getDaysUntilPasswordExpiry();
 
-            log.warn("⚠️ Password expiring soon for user: {} ({} days left)",
-                    user.getEmail(), daysLeft);
+
             warnings.add("Your password will expire in " + daysLeft + " days. Please update it soon.");
 
-            // Send warning email (async)
+            elkAuditService.logSuccess(
+                    AuditEventType.PASSWORD_EXPIRY_WARNING,
+                    user,
+                    daysLeft + " days remaining"
+            );
+
             mailService.sendPasswordExpiryWarning(
                     user.getEmail(),
                     user.getUsername(),
                     daysLeft
             );
-            authAuditService.logEvent(
-                    "PASSWORD_EXPIRY_WARNING",
-                    user,
-                    true,
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request),
-                    "User warned: Password expires in " + user.getDaysUntilPasswordExpiry() + " days"
-            );
+
         }
 
         // Check for expiring account (warn if < 7 days)
@@ -385,9 +309,14 @@ public class AuthServiceImpl implements AuthService {
                 user.getDaysUntilAccountExpiry() <= 7) {
             long daysLeft = user.getDaysUntilAccountExpiry();
 
-            log.warn("⚠️ Account expiring soon for user: {} ({} days left)",
-                    user.getEmail(), daysLeft);
             warnings.add("Your account access will expire in " + daysLeft + " days.");
+
+            elkAuditService.logSuccess(
+                    AuditEventType.ACCOUNT_EXPIRY_WARNING,
+                    user,
+                    daysLeft + " days remaining"
+            );
+
             // Send warning email (async)
             mailService.sendAccountExpiryWarning(
                     user.getEmail(),
@@ -395,8 +324,12 @@ public class AuthServiceImpl implements AuthService {
                     daysLeft
             );
         }
-        // Audit successful login
-        auditAuthEvent("LOGIN", user, request, "User logged in successfully");
+
+        elkAuditService.logSuccess(
+                AuditEventType.LOGIN_SUCCESS,
+                user,
+                "Login from " + parseDeviceName(request.getHeader("User-Agent"))
+        );
 
         return new LoginResponseDTO(
                 jwtToken,
@@ -412,24 +345,10 @@ public class AuthServiceImpl implements AuthService {
                                 .map(GrantedAuthority::getAuthority)
                                 .toList()
                 ));
-        // ==========================================
-        // NEW: ADD EXPIRY WARNINGS TO RESPONSE
-        // ==========================================
 
-        // You'd need to modify LoginResponseDTO to include warnings
-        // Or use a separate warnings endpoint
     }
 
-    /**
-     * Refreshes the access token and generates a new refresh token for the user.
-     * The old refresh token is verified for validity and expiration, after which
-     * a new access token along with a new refresh token is provided.
-     *
-     * @param request the token refresh request containing the current refresh token
-     * @return a {@code LoginResponseDTO} containing the new access token, new refresh token,
-     * and user details
-     * @throws TokenRefreshException if the refresh token is not found in the database or is invalid
-     */
+
     @Override
     @Transactional
     public LoginResponseDTO refreshAccessToken(TokenRefreshRequest request, HttpServletRequest httpRequest) {
@@ -466,12 +385,6 @@ public class AuthServiceImpl implements AuthService {
                         "Refresh token is not in database!"));
     }
 
-    /**
-     * Logs out the user by revoking their refresh token and creating an audit log entry.
-     *
-     * @param refreshToken the refresh token to be revoked
-     * @param request      the HTTP request containing client information for audit logging
-     */
     @Override
     @Transactional
     public void logout(String refreshToken, HttpServletRequest request) {
@@ -484,28 +397,24 @@ public class AuthServiceImpl implements AuthService {
             // Revoke the token
             refreshTokenService.revokeToken(refreshToken);
 
-            // Log successful logout
-            auditAuthEvent("LOGOUT", user, request, "User logged out successfully");
+            elkAuditService.logSuccess(
+                    AuditEventType.LOGOUT,
+                    user,
+                    "Logged out from current device"
+            );
 
         } catch (InvalidTokenException e) {
-            // Log failed logout attempt
-            authAuditService.logFailedEvent(
-                    "LOGOUT",
+
+            elkAuditService.logFailure(
+                    AuditEventType.LOGOUT,
                     "unknown",
-                    e.getMessage(),
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request)
+                    e.getMessage()
             );
             throw e;
         }
     }
 
-    /**
-     * Logs out the user from all devices by revoking all their refresh tokens.
-     *
-     * @param email   the email of the user
-     * @param request the HTTP request containing client information for audit logging
-     */
+
     @Override
     @Transactional
     public void logoutAllDevices(String email, HttpServletRequest request) {
@@ -515,21 +424,16 @@ public class AuthServiceImpl implements AuthService {
         // Revoke all tokens for this user
         refreshTokenService.revokeAllUserTokens(user);
 
-        // Log the action
-        auditAuthEvent("LOGOUT_ALL_DEVICES", user, request, "User logged out from all devices");
+        elkAuditService.logSuccess(
+                AuditEventType.LOGOUT_ALL_DEVICES,
+                user,
+                "Logged out from all devices"
+        );
     }
 // ==========================================
 // 3. PASSWORD RECOVERY
 // ==========================================
 
-    /**
-     * Initiates the password reset process for a user by generating a one-time password (OTP)
-     * and sending it to the user's registered email address.
-     *
-     * @param email the email address of the user requesting the password reset
-     * @throws IllegalArgumentException  if the provided email is invalid
-     * @throws ResourceNotFoundException if no user is found with the specified email address
-     */
     @Override
     public void initiatePasswordReset(String email) {
         validateEmailOnly(email);
@@ -537,22 +441,14 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         String otp = verificationService.createPasswordResetToken(user);
         mailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), otp);
+
+        elkAuditService.logSuccess(
+                AuditEventType.PASSWORD_RESET_INITIATED,
+                user,
+                "Password reset OTP sent"
+        );
     }
 
-    /**
-     * Resets the user's password based on the provided password reset request. This method validates the
-     * request, verifies the reset token, checks for expiry, and updates the user's password if all conditions
-     * are met. After successfully resetting the password, the reset token is deleted to avoid reuse.
-     *
-     * @param request The password reset request containing the user's email, one-time password (OTP),
-     *                and the new password to be set.
-     *                - email: The email address of the user requesting the password reset.
-     *                - otp: The one-time password or reset code sent to the user's email.
-     *                - newPassword: The new password the user wants to set.
-     * @throws ResourceNotFoundException If the user with the given email does not exist.
-     * @throws InvalidTokenException     If the provided reset token is invalid, does not belong to the user's
-     *                                   email, or has expired.
-     */
     @Override
     @Transactional
     public void resetPassword(PasswordResetRequest request) {
@@ -561,34 +457,57 @@ public class AuthServiceImpl implements AuthService {
         Map<String, String> fieldErrors = new HashMap<>();
         validateSignUpRequest(user.getEmail(), request.email(), request.newPassword(), fieldErrors);
 
-        if (!fieldErrors.isEmpty()) throw new MultipleFieldValidationException(fieldErrors);
+        if (!fieldErrors.isEmpty()) {
+            elkAuditService.logFailure(
+                    AuditEventType.PASSWORD_RESET_FAILED,
+                    request.email(),
+                    "Validation failed"
+            );
+            throw new MultipleFieldValidationException(fieldErrors);
+        }
 
         VerificationToken verificationToken = verificationTokenRepository
                 .findByTokenAndTokenType(request.otp(), "PASSWORD_RESET")
-                .orElseThrow(() -> new InvalidTokenException("Invalid reset code"));
+                .orElseThrow(() -> {
+                    elkAuditService.logFailure(
+                            AuditEventType.PASSWORD_RESET_FAILED,
+                            request.email(),
+                            "Invalid OTP"
+                    );
+                    return new InvalidTokenException("Invalid reset code");
+                });
 
         if (!verificationToken.getUser().getEmail().equals(request.email())) {
+            elkAuditService.logFailure(
+                    AuditEventType.PASSWORD_RESET_FAILED,
+                    request.email(),
+                    "OTP mismatch"
+            );
             throw new InvalidTokenException("This code was not issued for this email address");
         }
 
         if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
             verificationTokenRepository.delete(verificationToken);
-            throw new InvalidTokenException("Reset code has expired. Please request a new one.");
+            elkAuditService.logFailure(
+                    AuditEventType.PASSWORD_RESET_FAILED,
+                    request.email(),
+                    "OTP expired"
+            );
+            throw new InvalidTokenException("Reset code has expired.");
         }
 
-
         user.setPassword(passwordEncoder.encode(request.newPassword()));
-
-        // Reset failed login attempts when password is reset
         user.resetFailedAttempts();
 
         userRepository.save(user);
         verificationTokenRepository.delete(verificationToken);
-
-        // Revoke all refresh tokens (force re-login with new password)
         refreshTokenService.revokeAllUserTokens(user);
 
-        log.info("Password reset successful for user: {}", user.getEmail());
+        elkAuditService.logSuccess(
+                AuditEventType.PASSWORD_RESET_COMPLETED,
+                user,
+                "Password reset successful, all sessions terminated"
+        );
     }
     // ==========================================
     // 4. ACCOUNT SECURITY
@@ -603,30 +522,25 @@ public class AuthServiceImpl implements AuthService {
         user.resetFailedAttempts();
         userRepository.save(user);
 
-        log.info("Account unlocked for user: {}", email);
+        elkAuditService.logSuccess(
+                AuditEventType.ACCOUNT_UNLOCKED,
+                user,
+                "Account unlocked by admin"
+        );
     }
 
-    /**
-     * Handles failed login attempt - increments counter and locks if needed
-     */
     private void handleFailedLogin(User user, HttpServletRequest request) {
         user.incrementFailedAttempts();
 
         if (user.getFailedLoginAttempts() >= maxLoginAttempts) {
             user.lockAccount(lockoutDurationMinutes);
-            log.warn("🔒 Account locked for user: {} after {} failed attempts",
-                    user.getEmail(), maxLoginAttempts);
-
-            authAuditService.logEvent(
-                    "ACCOUNT_LOCKED",
+            elkAuditService.logSuccess(
+                    AuditEventType.ACCOUNT_LOCKED,
                     user,
-                    false,
-                    authAuditService.getClientIp(request),
-                    authAuditService.getUserAgent(request),
-                    String.format("Account locked after %d failed login attempts", maxLoginAttempts)
+                    String.format("Locked after %d failed attempts, unlock at: %s",
+                            maxLoginAttempts, user.getLockedUntil())
             );
         }
-
         userRepository.save(user);
     }
 
@@ -634,16 +548,6 @@ public class AuthServiceImpl implements AuthService {
 // 4. VALIDATION HELPERS
 // ==========================================
 
-    /**
-     * Validates the sign-up request by checking the provided username, email, and password
-     * against their respective validation policies. If validation errors are found, they are
-     * added to the provided fieldErrors map.
-     *
-     * @param username    the username provided in the sign-up request
-     * @param email       the email address provided in the sign-up request
-     * @param password    the password provided in the sign-up request
-     * @param fieldErrors a map where validation errors for each field are stored with field names as keys
-     */
     private void validateSignUpRequest(String username, String email, String password, Map<String, String> fieldErrors) {
         List<String> passwordErrors = passwordPolicyValidator.validate(password, username);
         if (!passwordErrors.isEmpty()) {
@@ -656,13 +560,6 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    /**
-     * Validates the provided email address against predefined email policy rules.
-     * If the email is invalid, an exception is thrown containing the validation errors.
-     *
-     * @param email the email address to be validated
-     * @throws MultipleFieldValidationException if the email is invalid, containing a map of error messages
-     */
     private void validateEmailOnly(String email) {
         List<String> emailErrors = emailPolicyValidator.validate(email);
         if (!emailErrors.isEmpty()) {
@@ -672,17 +569,14 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    /**
-     * Helper to audit authentication events
-     */
-    private void auditAuthEvent(String eventType, User user, HttpServletRequest request, String message) {
-        authAuditService.logEvent(
-                eventType,
-                user,
-                true,
-                authAuditService.getClientIp(request),
-                authAuditService.getUserAgent(request),
-                message
-        );
+    private String parseDeviceName(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) return "Unknown Device";
+        if (userAgent.contains("Windows")) return "Windows PC";
+        if (userAgent.contains("Mac")) return "Mac";
+        if (userAgent.contains("iPhone")) return "iPhone";
+        if (userAgent.contains("iPad")) return "iPad";
+        if (userAgent.contains("Android")) return "Android Device";
+        if (userAgent.contains("Linux")) return "Linux PC";
+        return "Unknown Device";
     }
 }

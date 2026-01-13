@@ -72,10 +72,18 @@ app:
     
     token-cleanup:
       cron: "0 0 3 * * ?" # Runs at 3 AM daily
-    
+
+    # OTP Verification
+    verification:
+      otp-length: 6
+      expiry-minutes: 15
+      max-attempts: 5
+      cooldown-seconds: 60
+
     account-lockout:
       max-attempts: 5
       duration-minutes: 30
+
 
     # Audit & Compliance
     audit:

@@ -3,23 +3,21 @@ package com.rishan.guardianstack.auth.repository;
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.model.VerificationToken;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
+@Repository
 public interface VerificationTokenRepository extends JpaRepository<VerificationToken, Long> {
 
-    Optional<VerificationToken> findByUserEmailAndToken(String email, String otp);
+    Optional<VerificationToken> findByUserAndTokenTypeAndVerifiedFalse(User user, String tokenType);
 
-    // Find the latest token for a user to check cooldown
-    Optional<VerificationToken> findFirstByUserOrderByCreatedAtDesc(User user);
+    Optional<VerificationToken> findFirstByUserAndTokenTypeOrderByCreatedAtDesc(User user, String tokenType);
 
-    // Clean up old tokens for a user
+    void deleteByUserAndTokenType(User user, String tokenType);
+
+    int deleteByExpiryDateBefore(LocalDateTime expiryDate);
+
     void deleteByUser(User user);
-
-    void deleteByUserAndTokenType(User user, String passwordReset);
-
-    Optional<VerificationToken> findByTokenAndTokenType(String token, String tokenType);
-
-    List<VerificationToken> findByUser(User user);
 }

@@ -156,10 +156,10 @@ public class ELKAuditService {
         return authAuditLogRepository.findByUserIdOrderByTimestampDesc(userId);
     }
 
-    public List<AuthAuditLog> getCriticalSecurityEvents(LocalDateTime since) {
-        // Query PostgreSQL for critical events (for compliance reports)
-        return authAuditLogRepository.findCriticalEventsSince(since);
-    }
+//    public List<AuthAuditLog> getCriticalSecurityEvents(LocalDateTime since) {
+//        // Query PostgreSQL for critical events (for compliance reports)
+//        return authAuditLogRepository.findCriticalEventsSince(since);
+//    }
 
     /**
      * Cleanup OLD PostgreSQL logs (keep only 90 days for compliance)
