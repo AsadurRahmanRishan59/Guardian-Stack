@@ -47,14 +47,14 @@ public class EmployeeScheduledJobs {
                     employee.getAccountExpiryDate()
             );
 
-            authAuditService.logEvent(
-                    "CONTRACT_EXPIRY_WARNING",
-                    employee,
-                    true,
-                    "system",
-                    "system",
-                    String.format("Contract expiry warning sent (%d days left)", daysLeft)
-            );
+//            authAuditService.logEvent(
+//                    "CONTRACT_EXPIRY_WARNING",
+//                    employee,
+//                    true,
+//                    "system",
+//                    "system",
+//                    String.format("Contract expiry warning sent (%d days left)", daysLeft)
+//            );
 
             log.info("⚠️ Sent contract expiry warning to: {} ({} days left)",
                     employee.getEmail(), daysLeft);
@@ -87,14 +87,14 @@ public class EmployeeScheduledJobs {
                     daysLeft
             );
 
-            authAuditService.logEvent(
-                    "PASSWORD_EXPIRY_WARNING",
-                    employee,
-                    true,
-                    "system",
-                    "system",
-                    String.format("Password expiry warning sent (%d days left)", daysLeft)
-            );
+//            authAuditService.logEvent(
+//                    "PASSWORD_EXPIRY_WARNING",
+//                    employee,
+//                    true,
+//                    "system",
+//                    "system",
+//                    String.format("Password expiry warning sent (%d days left)", daysLeft)
+//            );
 
             log.info("⚠️ Sent password expiry warning to: {} ({} days left)",
                     employee.getEmail(), daysLeft);
@@ -127,15 +127,15 @@ public class EmployeeScheduledJobs {
                     employee.getUsername(),
                     employee.getAccountExpiryDate()
             );
-
-            authAuditService.logEvent(
-                    "ACCOUNT_EXPIRED_AUTO_DISABLED",
-                    employee,
-                    false,
-                    "system",
-                    "system",
-                    "Account automatically disabled due to contract expiration"
-            );
+//
+//            authAuditService.logEvent(
+//                    "ACCOUNT_EXPIRED_AUTO_DISABLED",
+//                    employee,
+//                    false,
+//                    "system",
+//                    "system",
+//                    "Account automatically disabled due to contract expiration"
+//            );
 
             log.warn("🚫 Disabled expired employee account: {} (expired: {})",
                     employee.getEmail(), employee.getAccountExpiryDate());
@@ -170,14 +170,14 @@ public class EmployeeScheduledJobs {
                     employee.getUsername()
             );
 
-            authAuditService.logEvent(
-                    "PASSWORD_EXPIRED",
-                    employee,
-                    false,
-                    "system",
-                    "system",
-                    "Password expired - must change on next login"
-            );
+//            authAuditService.logEvent(
+//                    "PASSWORD_EXPIRED",
+//                    employee,
+//                    false,
+//                    "system",
+//                    "system",
+//                    "Password expired - must change on next login"
+//            );
 
             log.warn("🔒 Password expired for: {} (must change on next login)",
                     employee.getEmail());

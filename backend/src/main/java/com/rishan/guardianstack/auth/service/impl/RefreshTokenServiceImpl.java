@@ -187,8 +187,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .expiryDate(Instant.now().plusMillis(refreshTokenDurationMs))
                 .createdAt(Instant.now())
                 .revoked(false)
-                .ipAddress(oldToken.getIpAddress())
-                .userAgent(oldToken.getUserAgent())
+                .ipAddress(elkAuditService.getClientIp(request))
+                .userAgent(request.getHeader("User-Agent"))
                 .deviceFingerprint(oldToken.getDeviceFingerprint())
                 .deviceName(oldToken.getDeviceName())
                 .build();

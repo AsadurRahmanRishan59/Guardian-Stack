@@ -104,15 +104,15 @@ public class AdminService {
         );
 
         // Audit log
-        authAuditService.logEvent(
-                "EMPLOYEE_CREATED",
-                savedEmployee,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                String.format("Employee created with role: %s, contract: %d days",
-                        role.getRoleName(), contractDays)
-        );
+//        authAuditService.logEvent(
+//                "EMPLOYEE_CREATED",
+//                savedEmployee,
+//                true,
+//                authAuditService.getClientIp(httpRequest),
+//                authAuditService.getUserAgent(httpRequest),
+//                String.format("Employee created with role: %s, contract: %d days",
+//                        role.getRoleName(), contractDays)
+//        );
 
         log.info("✓ Created employee account: {} (Role: {}, Contract: {} days, Password expires: {} days)",
                 employee.getEmail(),
@@ -147,16 +147,16 @@ public class AdminService {
         );
 
         // Audit log
-        authAuditService.logEvent(
-                "CONTRACT_EXTENDED",
-                employee,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                String.format("Contract extended by %d days, new expiry: %s",
-                        request.additionalDays(),
-                        employee.getAccountExpiryDate())
-        );
+//        authAuditService.logEvent(
+//                "CONTRACT_EXTENDED",
+//                employee,
+//                true,
+//                authAuditService.getClientIp(httpRequest),
+//                authAuditService.getUserAgent(httpRequest),
+//                String.format("Contract extended by %d days, new expiry: %s",
+//                        request.additionalDays(),
+//                        employee.getAccountExpiryDate())
+//        );
 
         log.info("✓ Extended contract for: {} by {} days (new expiry: {})",
                 employee.getEmail(),
@@ -182,14 +182,14 @@ public class AdminService {
                 7
         );
 
-        authAuditService.logEvent(
-                "PASSWORD_CHANGE_FORCED",
-                employee,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                "Admin forced password change"
-        );
+//        authAuditService.logEvent(
+//                "PASSWORD_CHANGE_FORCED",
+//                employee,
+//                true,
+//                authAuditService.getClientIp(httpRequest),
+//                authAuditService.getUserAgent(httpRequest),
+//                "Admin forced password change"
+//        );
 
         log.info("✓ Forced password change for: {}", email);
     }
@@ -220,14 +220,14 @@ public class AdminService {
         );
 
         // Audit log
-        authAuditService.logEvent(
-                "PASSWORD_RESET_BY_ADMIN",
-                employee,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                "Admin reset employee password"
-        );
+//        authAuditService.logEvent(
+//                "PASSWORD_RESET_BY_ADMIN",
+//                employee,
+//                true,
+//                authAuditService.getClientIp(httpRequest),
+//                authAuditService.getUserAgent(httpRequest),
+//                "Admin reset employee password"
+//        );
 
         log.info("✓ Reset password for employee: {}", email);
     }
@@ -256,14 +256,14 @@ public class AdminService {
         );
 
         // Audit log
-        authAuditService.logEvent(
-                "EMPLOYEE_DEACTIVATED",
-                employee,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                "Reason: " + reason
-        );
+//        authAuditService.logEvent(
+//                "EMPLOYEE_DEACTIVATED",
+//                employee,
+//                true,
+//                authAuditService.getClientIp(httpRequest),
+//                authAuditService.getUserAgent(httpRequest),
+//                "Reason: " + reason
+//        );
 
         log.warn("🚫 Deactivated employee: {} (Reason: {})", email, reason);
     }
@@ -287,14 +287,14 @@ public class AdminService {
                 employee.getAccountExpiryDate()
         );
 
-        authAuditService.logEvent(
-                "EMPLOYEE_REACTIVATED",
-                employee,
-                true,
-                authAuditService.getClientIp(httpRequest),
-                authAuditService.getUserAgent(httpRequest),
-                String.format("Reactivated with %d days contract", contractDays)
-        );
+//        authAuditService.logEvent(
+//                "EMPLOYEE_REACTIVATED",
+//                employee,
+//                true,
+//                authAuditService.getClientIp(httpRequest),
+//                authAuditService.getUserAgent(httpRequest),
+//                String.format("Reactivated with %d days contract", contractDays)
+//        );
 
         log.info("✓ Reactivated employee: {} ({} days)", email, contractDays);
     }

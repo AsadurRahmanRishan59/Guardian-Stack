@@ -156,19 +156,23 @@ COMMENT ON TABLE public.gs_user_roles IS 'Many-to-many: Users can have multiple 
 
 CREATE TABLE IF NOT EXISTS public.gs_verification_tokens
 (
-    token_id     BIGSERIAL PRIMARY KEY,
-    token        VARCHAR(6)  NOT NULL,
-    user_id      BIGINT      NOT NULL,
-    token_type   VARCHAR(30) NOT NULL,
+    token_id              BIGSERIAL PRIMARY KEY,
+    token                 VARCHAR(10) NOT NULL,
+    user_id               BIGINT      NOT NULL,
+    token_type            VARCHAR(20) NOT NULL,
 
-    expiry_date  TIMESTAMP   NOT NULL,
-    confirmed_at TIMESTAMP   NULL,
+    verified              BOOLEAN     NOT NULL DEFAULT FALSE,
+    verified_at           TIMESTAMP   NULL,
+    verification_attempts INTEGER     NOT NULL DEFAULT 0,
 
-    created_at   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP   NULL,
-    created_by   VARCHAR(50) NULL,
-    updated_by   VARCHAR(50) NULL,
-    version      BIGINT      NOT NULL DEFAULT 0,
+    expiry_date           TIMESTAMP   NOT NULL,
+
+    -- JPA BaseEntity/Auditing fields
+    created_at            TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            TIMESTAMP   NULL,
+    created_by            VARCHAR(50) NULL,
+    updated_by            VARCHAR(50) NULL,
+    version               BIGINT      NOT NULL DEFAULT 0,
 
     CONSTRAINT fk_verification_token_user
         FOREIGN KEY (user_id)
@@ -179,10 +183,7 @@ CREATE TABLE IF NOT EXISTS public.gs_verification_tokens
         CHECK (token_type IN ('EMAIL_VERIFICATION', 'PASSWORD_RESET'))
 );
 
-COMMENT ON TABLE public.gs_verification_tokens IS '6-digit OTP codes for email verification and password reset';
-COMMENT ON COLUMN public.gs_verification_tokens.token IS '6-digit OTP (e.g., 123456)';
-COMMENT ON COLUMN public.gs_verification_tokens.expiry_date IS 'OTP valid for 15 minutes (email) or 10 minutes (password reset)';
-
+COMMENT ON COLUMN public.gs_verification_tokens.verification_attempts IS 'Counter to prevent brute-forcing OTPs';
 -- -----------------------------------------------------------------------------
 -- Table: gs_refresh_tokens
 -- Purpose: Long-lived refresh tokens with MULTI-DEVICE support

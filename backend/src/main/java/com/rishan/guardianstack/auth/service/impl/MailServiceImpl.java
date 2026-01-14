@@ -1,7 +1,9 @@
 package com.rishan.guardianstack.auth.service.impl;
 
 import com.rishan.guardianstack.auth.model.User;
+import com.rishan.guardianstack.auth.service.ELKAuditService;
 import com.rishan.guardianstack.auth.service.MailService;
+import com.rishan.guardianstack.core.logging.AuditEventType;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MailServiceImpl implements MailService {
     private final JavaMailSender mailSender;
+    private final ELKAuditService elkAuditService;
     private static final Logger log = LoggerFactory.getLogger(MailServiceImpl.class);
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' hh:mm a");
 
@@ -40,13 +43,25 @@ public class MailServiceImpl implements MailService {
             helper.setFrom("no-reply@guardianstack.com");
 
             mailSender.send(mimeMessage);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_VERIFICATION_SENT,
+                    null,
+                    "Verification email sent to: " + to
+            );
         } catch (MessagingException e) {
             log.error("Failed to send verification email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Verification email failed: " + e.getMessage()
+            );
             throw new IllegalStateException("Failed to send email", e);
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendPasswordResetEmail(String to, String username, String otp) {
         try {
@@ -62,12 +77,24 @@ public class MailServiceImpl implements MailService {
             message.setFrom("no-reply@guardianstack.com");
 
             mailSender.send(message);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_PASSWORD_RESET_SENT,
+                    null,
+                    "Password reset email sent to: " + to + " (username: " + username + ")"
+            );
         } catch (Exception e) {
             log.error("Failed to send password reset email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Password reset email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendEmployeeWelcomeEmail(String to, String username, String tempPassword,
                                          LocalDateTime accountExpiry, LocalDateTime passwordExpiry) {
@@ -98,12 +125,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent welcome email to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_EMPLOYEE_WELCOME_SENT,
+                    null,
+                    String.format("Employee welcome email sent to: %s (expires: %s)",
+                            to, accountExpiry.format(DATE_FORMATTER))
+            );
         } catch (MessagingException e) {
             log.error("Failed to send employee welcome email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Employee welcome email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendContractExtendedEmail(String to, String username, int additionalDays,
                                           LocalDateTime newExpiryDate) {
@@ -122,12 +162,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(message);
             log.info("✓ Sent contract extension email to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_CONTRACT_EXTENDED_SENT,
+                    null,
+                    String.format("Contract extension email sent to: %s (+%d days, new expiry: %s)",
+                            to, additionalDays, newExpiryDate.format(DATE_FORMATTER))
+            );
         } catch (Exception e) {
             log.error("Failed to send contract extension email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Contract extension email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendPasswordChangeRequired(String to, String username, int daysToChange) {
         try {
@@ -152,12 +205,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent password change required email to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_PASSWORD_CHANGE_REQUIRED_SENT,
+                    null,
+                    String.format("Password change required email sent to: %s (deadline: %d days)",
+                            to, daysToChange)
+            );
         } catch (MessagingException e) {
             log.error("Failed to send password change required email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Password change required email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendPasswordResetByAdmin(String to, String username, String tempPassword,
                                          int expiryDays) {
@@ -188,12 +254,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent admin password reset email to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_PASSWORD_RESET_BY_ADMIN_SENT,
+                    null,
+                    String.format("Admin password reset email sent to: %s (expires in %d days)",
+                            to, expiryDays)
+            );
         } catch (MessagingException e) {
             log.error("Failed to send admin password reset email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Admin password reset email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendAccountDeactivatedEmail(String to, String username, String reason) {
         try {
@@ -211,12 +290,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(message);
             log.info("✓ Sent account deactivation email to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_ACCOUNT_DEACTIVATED_SENT,
+                    null,
+                    String.format("Account deactivation email sent to: %s (reason: %s)",
+                            to, reason)
+            );
         } catch (Exception e) {
             log.error("Failed to send account deactivation email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Account deactivation email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendAccountReactivatedEmail(String to, String username, int contractDays,
                                             LocalDateTime newExpiryDate) {
@@ -242,12 +334,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent account reactivation email to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_ACCOUNT_REACTIVATED_SENT,
+                    null,
+                    String.format("Account reactivation email sent to: %s (contract: %d days, expires: %s)",
+                            to, contractDays, newExpiryDate.format(DATE_FORMATTER))
+            );
         } catch (MessagingException e) {
             log.error("Failed to send account reactivation email to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Account reactivation email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendAccountExpiryWarning(String to, String username, long daysLeft) {
         try {
@@ -274,12 +379,24 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent account expiry warning to: {} ({} days left)", to, daysLeft);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_ACCOUNT_EXPIRY_WARNING_SENT,
+                    null,
+                    String.format("Account expiry warning sent to: %s (days left: %d)", to, daysLeft)
+            );
         } catch (MessagingException e) {
             log.error("Failed to send account expiry warning to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Account expiry warning email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendContractExpiryWarning(String to, String username, long daysLeft,
                                           LocalDateTime expiryDate) {
@@ -308,12 +425,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent contract expiry warning to: {} ({} days left)", to, daysLeft);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_CONTRACT_EXPIRY_WARNING_SENT,
+                    null,
+                    String.format("Contract expiry warning sent to: %s (days left: %d, expires: %s)",
+                            to, daysLeft, expiryDate.format(DATE_FORMATTER))
+            );
         } catch (MessagingException e) {
             log.error("Failed to send contract expiry warning to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Contract expiry warning email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendPasswordExpiryWarning(String to, String username, long daysLeft) {
         try {
@@ -337,12 +467,24 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent password expiry warning to: {} ({} days left)", to, daysLeft);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_PASSWORD_EXPIRY_WARNING_SENT,
+                    null,
+                    String.format("Password expiry warning sent to: %s (days left: %d)", to, daysLeft)
+            );
         } catch (MessagingException e) {
             log.error("Failed to send password expiry warning to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Password expiry warning email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendAccountExpiredNotification(String to, String username,
                                                LocalDateTime expiryDate) {
@@ -360,12 +502,25 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(message);
             log.info("✓ Sent account expired notification to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_ACCOUNT_EXPIRED_SENT,
+                    null,
+                    String.format("Account expired notification sent to: %s (expired: %s)",
+                            to, expiryDate.format(DATE_FORMATTER))
+            );
         } catch (Exception e) {
             log.error("Failed to send account expired notification to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Account expired notification email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendPasswordExpiredNotification(String to, String username) {
         try {
@@ -389,12 +544,24 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent password expired notification to: {}", to);
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_PASSWORD_EXPIRED_SENT,
+                    null,
+                    String.format("Password expired notification sent to: %s", to)
+            );
         } catch (MessagingException e) {
             log.error("Failed to send password expired notification to {}: {}", to, e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    to,
+                    "Password expired notification email failed: " + e.getMessage()
+            );
         }
     }
 
-    @Async
+    @Async("emailExecutor")
     @Override
     public void sendWeeklyExpirationReportToAdmins(List<User> expiringSoon,
                                                    List<User> passwordsExpiringSoon,
@@ -486,8 +653,21 @@ public class MailServiceImpl implements MailService {
 
             mailSender.send(mimeMessage);
             log.info("✓ Sent weekly expiration report to admins");
+
+            elkAuditService.logSuccess(
+                    AuditEventType.EMAIL_WEEKLY_REPORT_SENT,
+                    null,
+                    String.format("Weekly report sent: %d contracts expiring, %d passwords expiring, %d anomalies",
+                            expiringSoon.size(), passwordsExpiringSoon.size(), expiredStillEnabled.size())
+            );
         } catch (MessagingException e) {
             log.error("Failed to send weekly expiration report: {}", e.getMessage());
+
+            elkAuditService.logFailure(
+                    AuditEventType.EMAIL_SEND_FAILED,
+                    "admin@guardianstack.com",
+                    "Weekly expiration report failed: " + e.getMessage()
+            );
         }
     }
 }

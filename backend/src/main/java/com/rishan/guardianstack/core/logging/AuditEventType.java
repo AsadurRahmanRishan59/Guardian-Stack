@@ -52,6 +52,31 @@ public enum AuditEventType {
     ADMIN_PASSWORD_RESET("Admin reset user password", AuditLevel.WARN, LogDestination.ELK_AND_DB),
     ADMIN_ROLE_CHANGE("Admin changed user roles", AuditLevel.WARN, LogDestination.ELK_AND_DB),
 
+    // ========== EMAIL NOTIFICATION EVENTS ==========
+    // Critical emails that should be tracked in DB for compliance
+    EMAIL_VERIFICATION_SENT("Verification email sent", AuditLevel.INFO, LogDestination.ELK_ONLY),
+    EMAIL_PASSWORD_RESET_SENT("Password reset email sent", AuditLevel.INFO, LogDestination.ELK_AND_DB),
+    EMAIL_EMPLOYEE_WELCOME_SENT("Employee welcome email sent", AuditLevel.INFO, LogDestination.ELK_AND_DB),
+    EMAIL_PASSWORD_RESET_BY_ADMIN_SENT("Admin password reset email sent", AuditLevel.WARN, LogDestination.ELK_AND_DB),
+    EMAIL_ACCOUNT_DEACTIVATED_SENT("Account deactivation email sent", AuditLevel.WARN, LogDestination.ELK_AND_DB),
+    EMAIL_ACCOUNT_REACTIVATED_SENT("Account reactivation email sent", AuditLevel.INFO, LogDestination.ELK_AND_DB),
+
+    // Warning/notification emails - ELK only (for analytics)
+    EMAIL_CONTRACT_EXTENDED_SENT("Contract extension email sent", AuditLevel.INFO, LogDestination.ELK_ONLY),
+    EMAIL_PASSWORD_CHANGE_REQUIRED_SENT("Password change required email sent", AuditLevel.INFO, LogDestination.ELK_ONLY),
+    EMAIL_ACCOUNT_EXPIRY_WARNING_SENT("Account expiry warning sent", AuditLevel.INFO, LogDestination.ELK_ONLY),
+    EMAIL_CONTRACT_EXPIRY_WARNING_SENT("Contract expiry warning sent", AuditLevel.INFO, LogDestination.ELK_ONLY),
+    EMAIL_PASSWORD_EXPIRY_WARNING_SENT("Password expiry warning sent", AuditLevel.INFO, LogDestination.ELK_ONLY),
+    EMAIL_ACCOUNT_EXPIRED_SENT("Account expired notification sent", AuditLevel.WARN, LogDestination.ELK_ONLY),
+    EMAIL_PASSWORD_EXPIRED_SENT("Password expired notification sent", AuditLevel.WARN, LogDestination.ELK_ONLY),
+
+    // Administrative reports - ELK only
+    EMAIL_WEEKLY_REPORT_SENT("Weekly expiration report sent to admins", AuditLevel.INFO, LogDestination.ELK_ONLY),
+
+    // Email failures - Critical for troubleshooting
+    EMAIL_SEND_FAILED("Email sending failed", AuditLevel.WARN, LogDestination.ELK_AND_DB),
+
+    //
     // ========== SECURITY ALERTS (CRITICAL - Always to DB) ==========
     SUSPICIOUS_ACTIVITY("Suspicious activity detected", AuditLevel.CRITICAL, LogDestination.ELK_AND_DB),
     BRUTE_FORCE_DETECTED("Brute force attack detected", AuditLevel.CRITICAL, LogDestination.ELK_AND_DB),
@@ -68,9 +93,17 @@ public enum AuditEventType {
         this.destination = destination;
     }
 
-    public String getDescription() { return description; }
-    public AuditLevel getLevel() { return level; }
-    public LogDestination getDestination() { return destination; }
+    public String getDescription() {
+        return description;
+    }
+
+    public AuditLevel getLevel() {
+        return level;
+    }
+
+    public LogDestination getDestination() {
+        return destination;
+    }
 
     public boolean shouldPersistToDatabase() {
         return destination == LogDestination.ELK_AND_DB || destination == LogDestination.DB_ONLY;
