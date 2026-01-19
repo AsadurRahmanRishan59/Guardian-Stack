@@ -9,8 +9,6 @@ import com.rishan.guardianstack.core.logging.AuditLogEntry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.logstash.logback.marker.Markers;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +25,8 @@ import java.util.List;
  * - ALL events -> Elasticsearch (via Logstash)
  * - CRITICAL events -> PostgresSQL (for compliance)
  * - Logs buffered during transactions and sent only after commit
+ * IMPORTANT: Uses AsyncAuditProcessor (separate service) to avoid self-invocation issues
+ * with @Async annotations.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,9 +34,9 @@ import java.util.List;
 public class ELKAuditService {
 
     private final AuthAuditLogRepository authAuditLogRepository;
-    private final AuditDbWriter auditDbWriter;
+    private final AsyncAuditProcessor asyncAuditProcessor;
 
-    private static final ThreadLocal<List<PendingAuditLog>> pendingLogs =
+    private static final ThreadLocal<List<AuditLogEntry>> pendingLogs =
             ThreadLocal.withInitial(ArrayList::new);
 
     // ==========================================
@@ -47,28 +47,16 @@ public class ELKAuditService {
      * Log success - automatically handles transaction state
      */
     public void logSuccess(AuditEventType eventType, User user, String additionalInfo) {
-        PendingAuditLog pending = new PendingAuditLog(
-                AuditLogEntry.success(eventType, user, additionalInfo),
-                true,
-                user,
-                null,
-                additionalInfo
-        );
-        scheduleOrExecute(pending);
+        AuditLogEntry entry = AuditLogEntry.success(eventType, user, additionalInfo);
+        scheduleOrExecute(entry);
     }
 
     /**
      * Log failure - automatically handles transaction state
      */
     public void logFailure(AuditEventType eventType, String email, String reason) {
-        PendingAuditLog pending = new PendingAuditLog(
-                AuditLogEntry.failure(eventType, email, reason),
-                false,
-                null,
-                email,
-                reason
-        );
-        scheduleOrExecute(pending);
+        AuditLogEntry entry = AuditLogEntry.failure(eventType, email, reason);
+        scheduleOrExecute(entry);
     }
 
     /**
@@ -77,27 +65,27 @@ public class ELKAuditService {
      */
     public void logSuccessImmediately(AuditEventType eventType, User user, String additionalInfo) {
         AuditLogEntry entry = AuditLogEntry.success(eventType, user, additionalInfo);
-        executeLog(entry, true, user, null, additionalInfo);
+        executeLogAsync(entry);
     }
 
     public void logFailureImmediately(AuditEventType eventType, String email, String reason) {
         AuditLogEntry entry = AuditLogEntry.failure(eventType, email, reason);
-        executeLog(entry, false, null, email, reason);
+        executeLogAsync(entry);
     }
 
     // ==========================================
     // TRANSACTION MANAGEMENT
     // ==========================================
 
-    private void scheduleOrExecute(PendingAuditLog pending) {
+    private void scheduleOrExecute(AuditLogEntry entry) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             // No active transaction - execute immediately
-            executeLog(pending.entry, pending.isSuccess, pending.user, pending.email, pending.info);
+            executeLogAsync(entry);
             return;
         }
 
         // Buffer for after-commit
-        pendingLogs.get().add(pending);
+        pendingLogs.get().add(entry);
 
         // Register synchronization only once
         if (pendingLogs.get().size() == 1) {
@@ -105,13 +93,11 @@ public class ELKAuditService {
                     new TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            List<PendingAuditLog> logs = pendingLogs.get();
+                            List<AuditLogEntry> logs = pendingLogs.get();
                             log.debug("Transaction committed, flushing {} audit logs", logs.size());
 
-                            logs.forEach(pending ->
-                                    executeLog(pending.entry, pending.isSuccess,
-                                            pending.user, pending.email, pending.info)
-                            );
+                            // Send each log to async processor (separate service!)
+                            logs.forEach(asyncAuditProcessor::processAuditLog);
 
                             pendingLogs.remove();
                         }
@@ -136,58 +122,22 @@ public class ELKAuditService {
         }
     }
 
-    private void executeLog(AuditLogEntry entry, boolean isSuccess,
-                            User user, String email, String info) {
-        if (isSuccess) {
-            processSuccessLog(entry, user, info);
-        } else {
-            processFailureLog(entry, email, info);
-        }
-    }
-
     /**
-     * Execute log asynchronously - called AFTER transaction commit
-     * or immediately for non-transactional contexts
+     * Execute log asynchronously via separate service
+     * CRITICAL: This calls asyncAuditProcessor (separate @Service) to ensure
+     * the @Async annotation is properly intercepted by Spring AOP proxy.
      */
-    @Async("auditLogExecutor")
-    protected void processSuccessLog(AuditLogEntry entry, User user, String info) {
-        processLog(entry);
-    }
-
-    @Async("auditLogExecutor")
-    protected void processFailureLog(AuditLogEntry entry, String email, String info) {
-        processLog(entry);
-    }
-
-    /**
-     * Process the log entry synchronously within the async thread
-     * This sends to both ELK and DB as needed
-     */
-    private void processLog(AuditLogEntry entry) {
-        try {
-            // Send to Elasticsearch
-            if (entry.getEventType() != null &&
-                    AuditEventType.valueOf(entry.getEventType()).shouldLogToElasticsearch()) {
-                logToElasticsearch(entry);
-            }
-
-            // Send to PostgresSQL
-            if (entry.getEventType() != null &&
-                    AuditEventType.valueOf(entry.getEventType()).shouldPersistToDatabase()) {
-                auditDbWriter.saveToDatabase(entry);
-            }
-        } catch (Exception e) {
-            log.error("Failed to process audit log for event: {}", entry.getEventType(), e);
-        }
+    private void executeLogAsync(AuditLogEntry entry) {
+        asyncAuditProcessor.processAuditLog(entry);
     }
 
     /**
      * Log the fact that a transaction rolled back (for troubleshooting)
      */
-    private void logRollbackEvent(List<PendingAuditLog> discardedLogs) {
+    private void logRollbackEvent(List<AuditLogEntry> discardedLogs) {
         try {
             StringBuilder msg = new StringBuilder("Transaction rollback prevented logging of: ");
-            discardedLogs.forEach(p -> msg.append(p.entry.getEventType()).append(", "));
+            discardedLogs.forEach(p -> msg.append(p.getEventType()).append(", "));
 
             log.warn("🔄 ROLLBACK DETECTED: {}", msg);
 
@@ -199,32 +149,11 @@ public class ELKAuditService {
                     .timestamp(Instant.now())
                     .build();
 
-            logToElasticsearch(rollbackEntry);
+            // Send to async processor
+            asyncAuditProcessor.processAuditLog(rollbackEntry);
 
         } catch (Exception e) {
             log.error("Failed to log rollback event", e);
-        }
-    }
-
-    /**
-     * Log to Elasticsearch via Logstash (using structured JSON)
-     */
-    private void logToElasticsearch(AuditLogEntry entry) {
-        try {
-            AuditEventType eventType = AuditEventType.valueOf(entry.getEventType());
-
-            switch (eventType.getLevel()) {
-                case DEBUG -> log.debug(Markers.appendRaw("audit", entry.toJsonString()),
-                        "AUDIT: {}", entry.getMessage());
-                case INFO -> log.info(Markers.appendRaw("audit", entry.toJsonString()),
-                        "AUDIT: {}", entry.getMessage());
-                case WARN -> log.warn(Markers.appendRaw("audit", entry.toJsonString()),
-                        "AUDIT: {}", entry.getMessage());
-                case CRITICAL -> log.error(Markers.appendRaw("audit", entry.toJsonString()),
-                        "🚨 SECURITY AUDIT: {}", entry.getMessage());
-            }
-        } catch (Exception e) {
-            log.error("Failed to log to Elasticsearch: {}", entry.getEventType(), e);
         }
     }
 
@@ -280,16 +209,4 @@ public class ELKAuditService {
         int deleted = authAuditLogRepository.deleteOldLogs(cutoff);
         log.info("🧹 PostgresSQL audit cleanup: Removed {} logs older than {}", deleted, cutoff);
     }
-
-    // ==========================================
-    // HELPER CLASSES
-    // ==========================================
-
-    private record PendingAuditLog(
-            AuditLogEntry entry,
-            boolean isSuccess,
-            User user,
-            String email,
-            String info
-    ) {}
 }

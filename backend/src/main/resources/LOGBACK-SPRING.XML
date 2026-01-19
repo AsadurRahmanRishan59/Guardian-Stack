@@ -4,18 +4,27 @@
 
     <springProperty scope="context" name="applicationName" source="spring.application.name"/>
 
+    <!-- ========================================== -->
+    <!-- CONSOLE APPENDER (Development)             -->
+    <!-- ========================================== -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) [%X{requestId}] - %msg%n</pattern>
         </encoder>
     </appender>
 
+    <!-- ========================================== -->
+    <!-- APPLICATION LOGS (JSON)                    -->
+    <!-- ========================================== -->
     <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/guardianstack.json</file>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"app":"${applicationName}","log_type":"application"}</customFields>
             <includeMdcKeyName>requestId</includeMdcKeyName>
             <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>sessionId</includeMdcKeyName>
+            <includeMdcKeyName>ipAddress</includeMdcKeyName>
+            <includeMdcKeyName>userAgent</includeMdcKeyName>
             <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
                 <maxDepthPerThrowable>20</maxDepthPerThrowable>
                 <maxLength>1024</maxLength>
@@ -25,40 +34,106 @@
             <fileNamePattern>logs/guardianstack-%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
             <maxFileSize>100MB</maxFileSize>
             <maxHistory>7</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
         </rollingPolicy>
     </appender>
 
+    <!-- ========================================== -->
+    <!-- AUDIT LOGS (JSON - for ELK/Elasticsearch) -->
+    <!-- ========================================== -->
     <appender name="AUDIT_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/audit.json</file>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"app":"${applicationName}","log_type":"audit"}</customFields>
+            <!-- Include all MDC context for audit trail -->
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>sessionId</includeMdcKeyName>
+            <includeMdcKeyName>ipAddress</includeMdcKeyName>
+            <includeMdcKeyName>userAgent</includeMdcKeyName>
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
                 <level>log.level</level>
+                <message>message</message>
+                <logger>logger.name</logger>
             </fieldNames>
         </encoder>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>logs/audit-%d{yyyy-MM-dd}.json.gz</fileNamePattern>
-            <maxHistory>30</maxHistory> </rollingPolicy>
+            <maxHistory>90</maxHistory> <!-- Keep 90 days for compliance -->
+            <totalSizeCap>10GB</totalSizeCap>
+        </rollingPolicy>
     </appender>
 
+    <!-- ========================================== -->
+    <!-- ASYNC APPENDERS (Performance)              -->
+    <!-- ========================================== -->
     <appender name="ASYNC_FILE" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
         <appender-ref ref="FILE_JSON" />
-        <ringBufferSize>1024</ringBufferSize>
+        <ringBufferSize>2048</ringBufferSize>
+        <includeCallerData>false</includeCallerData>
     </appender>
 
     <appender name="ASYNC_AUDIT" class="net.logstash.logback.appender.LoggingEventAsyncDisruptorAppender">
         <appender-ref ref="AUDIT_JSON" />
-        <ringBufferSize>1024</ringBufferSize>
+        <ringBufferSize>2048</ringBufferSize>
+        <includeCallerData>true</includeCallerData> <!-- Important for audit trail -->
     </appender>
 
+    <!-- ========================================== -->
+    <!-- LOGGER CONFIGURATIONS                      -->
+    <!-- ========================================== -->
+
+    <!-- Audit Service - Send to AUDIT_JSON only -->
+    <logger name="com.rishan.guardianstack.auth.service.ELKAuditService" level="DEBUG" additivity="false">
+        <appender-ref ref="ASYNC_AUDIT" />
+    </logger>
+
+    <!-- Audit Log Entry - Send to AUDIT_JSON only -->
     <logger name="com.rishan.guardianstack.core.logging.AuditLogEntry" level="DEBUG" additivity="false">
         <appender-ref ref="ASYNC_AUDIT" />
+    </logger>
+
+    <!-- Security Package - Enhanced logging -->
+    <logger name="com.rishan.guardianstack.auth" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_FILE" />
+    </logger>
+
+    <!-- Spring Security - Important for troubleshooting -->
+    <logger name="org.springframework.security" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_FILE" />
+    </logger>
+
+    <!-- Transaction logging (useful for debugging) -->
+    <logger name="org.springframework.transaction" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="ASYNC_FILE" />
+    </logger>
+
+    <!-- JPA/Hibernate (disable in production) -->
+    <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
         <appender-ref ref="CONSOLE" />
     </logger>
 
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger>
+
+    <!-- Reduce noise from common libraries -->
+    <logger name="org.springframework.web" level="WARN"/>
+    <logger name="org.springframework.boot" level="INFO"/>
+    <logger name="org.apache" level="WARN"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+
+    <!-- ========================================== -->
+    <!-- ROOT LOGGER (Fallback)                     -->
+    <!-- ========================================== -->
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
         <appender-ref ref="ASYNC_FILE" />
     </root>
+
 </configuration>
