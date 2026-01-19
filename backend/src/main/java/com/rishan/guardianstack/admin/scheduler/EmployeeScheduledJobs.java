@@ -2,7 +2,6 @@ package com.rishan.guardianstack.admin.scheduler;
 
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.UserRepository;
-import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.MailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +19,7 @@ public class EmployeeScheduledJobs {
 
     private final UserRepository userRepository;
     private final MailService mailService;
-    private final AuthAuditService authAuditService;
+//    private final AuthAuditService authAuditService;
 
     /**
      * Notify employees of expiring contracts (7 days warning)

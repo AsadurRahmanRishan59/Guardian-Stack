@@ -57,7 +57,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public RefreshToken createRefreshToken(String email, HttpServletRequest request) {
 
-        User user = userRepository.findByEmailForUpdate(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = userRepository.findByEmailForUpdate(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         DevicePolicy policy = getDevicePolicyForUser(user);
 
@@ -71,6 +72,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private RefreshToken createRefreshTokenSingleDevice(User user, HttpServletRequest request) {
         int deleted = refreshTokenRepository.deleteByUser(user);
         if (deleted > 0) {
+            // BUFFERED - Only logged if deletion succeeds
             elkAuditService.logSuccess(
                     AuditEventType.DEVICE_SESSION_REPLACED,
                     user,
@@ -84,7 +86,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private RefreshToken createRefreshTokenMultiDevice(User user, HttpServletRequest request, int maxDevices) {
         String deviceFingerprint = generateDeviceFingerprint(request);
 
-        Optional<RefreshToken> existingDeviceToken = refreshTokenRepository.findByUserAndDeviceFingerprint(user, deviceFingerprint);
+        Optional<RefreshToken> existingDeviceToken =
+                refreshTokenRepository.findByUserAndDeviceFingerprint(user, deviceFingerprint);
 
         if (existingDeviceToken.isPresent()) {
             refreshTokenRepository.delete(existingDeviceToken.get());
@@ -94,6 +97,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
             if (activeDevices >= maxDevices) {
                 removeOldestToken(user);
+                // BUFFERED - Only logged if removal succeeds
                 elkAuditService.logSuccess(
                         AuditEventType.DEVICE_LIMIT_REACHED,
                         user,
@@ -124,6 +128,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         RefreshToken saved = refreshTokenRepository.save(refreshToken);
 
+        // BUFFERED - Only logged if token save succeeds
         elkAuditService.logSuccess(
                 AuditEventType.TOKEN_CREATED,
                 user,
@@ -153,10 +158,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Transactional
     public RefreshToken rotateRefreshToken(String oldTokenString, User user, HttpServletRequest request) {
 
-        RefreshToken oldToken = refreshTokenRepository.findByToken(oldTokenString).orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
+        RefreshToken oldToken = refreshTokenRepository.findByToken(oldTokenString)
+                .orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
 
         if (oldToken.isRevoked()) {
-            // Forensic Data Gathering
+            // CRITICAL SECURITY EVENT - Log IMMEDIATELY even if transaction fails
+            // We need to know about token reuse attempts regardless of what happens next
+
             String currentIp = elkAuditService.getClientIp(request);
             String currentFingerprint = generateDeviceFingerprint(request);
             boolean sameDevice = oldToken.getDeviceFingerprint().equals(currentFingerprint);
@@ -167,20 +175,28 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                     Duration.between(oldToken.getRevokedAt(), Instant.now()).toMinutes()
             );
 
-            elkAuditService.logFailure(AuditEventType.TOKEN_REUSE_DETECTED, user.getEmail(), forensicDetails);
+            // IMMEDIATE - Security event, log before throwing exception
+            elkAuditService.logFailureImmediately(
+                    AuditEventType.TOKEN_REUSE_DETECTED,
+                    user.getEmail(),
+                    forensicDetails
+            );
 
+            // Revoke all tokens (this might fail, but we already logged the security event)
             if (getDevicePolicyForUser(user).multiDeviceEnabled()) {
                 refreshTokenRepository.deleteByUserAndDeviceFingerprint(user, oldToken.getDeviceFingerprint());
             } else {
                 refreshTokenRepository.deleteByUser(user);
             }
+
             throw new TokenReusedException("Security alert: Token reuse detected. You have been logged out.");
         }
 
-        // Normal rotation
+        // Normal rotation - mark old token as revoked
         oldToken.setRevoked(true);
         oldToken.setRevokedAt(Instant.now());
 
+        // Create new token
         RefreshToken newToken = RefreshToken.builder()
                 .user(user)
                 .token(UUID.randomUUID().toString())
@@ -198,6 +214,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         refreshTokenRepository.save(oldToken);
         RefreshToken saved = refreshTokenRepository.save(newToken);
 
+        // BUFFERED - Only logged if rotation succeeds
+        elkAuditService.logSuccess(
+                AuditEventType.TOKEN_REFRESHED,
+                user,
+                String.format("Token rotated for device: %s", oldToken.getDeviceName())
+        );
+
         log.debug("✓ Token rotated: User={}, Device={}",
                 user.getEmail(), oldToken.getDeviceName());
 
@@ -209,6 +232,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         if (!tokens.isEmpty()) {
             RefreshToken oldest = tokens.getFirst();
             refreshTokenRepository.delete(oldest);
+
+            // BUFFERED - Only logged if removal succeeds
             elkAuditService.logSuccess(
                     AuditEventType.DEVICE_REMOVED,
                     user,
@@ -224,14 +249,26 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
 
         refreshTokenRepository.delete(refreshToken);
-        elkAuditService.logSuccess(AuditEventType.LOGOUT, refreshToken.getUser(), "Logged out device: " + refreshToken.getDeviceName());
+
+        // BUFFERED - Only logged if deletion succeeds
+        elkAuditService.logSuccess(
+                AuditEventType.TOKEN_REVOKED,
+                refreshToken.getUser(),
+                "Token revoked for device: " + refreshToken.getDeviceName()
+        );
     }
 
     @Override
     @Transactional
     public void revokeAllUserTokens(User user) {
         int deleted = refreshTokenRepository.deleteByUser(user);
-        elkAuditService.logSuccess(AuditEventType.LOGOUT_ALL_DEVICES, user, "Revoked all " + deleted + " sessions");
+
+        // BUFFERED - Only logged if deletion succeeds
+        elkAuditService.logSuccess(
+                AuditEventType.LOGOUT_ALL_DEVICES,
+                user,
+                "Revoked all " + deleted + " sessions"
+        );
     }
 
     @Override
@@ -249,6 +286,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                     token.getUser().getEmail(),
                     token.getDeviceName());
 
+            // IMMEDIATE - Security event, log before any DB changes
+            elkAuditService.logFailureImmediately(
+                    AuditEventType.TOKEN_REUSE_DETECTED,
+                    token.getUser().getEmail(),
+                    "Attempted use of revoked token for device: " + token.getDeviceName()
+            );
+
             DevicePolicy policy = getDevicePolicyForUser(token.getUser());
 
             if (policy.multiDeviceEnabled()) {
@@ -265,6 +309,14 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
             refreshTokenRepository.delete(token);
+
+            // IMMEDIATE - Log expired token (informational, not critical)
+            elkAuditService.logFailureImmediately(
+                    AuditEventType.TOKEN_EXPIRED,
+                    token.getUser().getEmail(),
+                    "Token expired for device: " + token.getDeviceName()
+            );
+
             throw new TokenExpiredException("Token has expired. Please sign in again.");
         }
 
@@ -275,7 +327,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
     }
-
 
     @Override
     @Transactional
@@ -316,7 +367,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             String userAgent = request.getHeader("User-Agent");
             String clientDeviceId = request.getHeader("X-Device-ID");
 
-            String data = String.format("%s|%s|%s", ip != null ? ip : "unknown", userAgent != null ? userAgent : "unknown", clientDeviceId != null ? clientDeviceId : "no-client-id");
+            String data = String.format("%s|%s|%s",
+                    ip != null ? ip : "unknown",
+                    userAgent != null ? userAgent : "unknown",
+                    clientDeviceId != null ? clientDeviceId : "no-client-id"
+            );
 
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));

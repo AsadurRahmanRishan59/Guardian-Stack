@@ -14,14 +14,19 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Dual-destination audit service
+ * Dual-destination audit service with transaction-awareness
  * - ALL events -> Elasticsearch (via Logstash)
- * - CRITICAL events -> PostgreSQL (for compliance)
+ * - CRITICAL events -> PostgresSQL (for compliance)
+ * - Logs buffered during transactions and sent only after commit
  */
 @Service
 @RequiredArgsConstructor
@@ -31,39 +36,184 @@ public class ELKAuditService {
     private final AuthAuditLogRepository authAuditLogRepository;
     private final AuditDbWriter auditDbWriter;
 
-    @Async("auditLogExecutor")
+    private static final ThreadLocal<List<PendingAuditLog>> pendingLogs =
+            ThreadLocal.withInitial(ArrayList::new);
+
+    // ==========================================
+    // PUBLIC API - TRANSACTION AWARE
+    // ==========================================
+
+    /**
+     * Log success - automatically handles transaction state
+     */
     public void logSuccess(AuditEventType eventType, User user, String additionalInfo) {
-        AuditLogEntry entry = AuditLogEntry.success(eventType, user, additionalInfo);
-        processLog(entry); // Internal call is fine now because the "entry" was async
+        PendingAuditLog pending = new PendingAuditLog(
+                AuditLogEntry.success(eventType, user, additionalInfo),
+                true,
+                user,
+                null,
+                additionalInfo
+        );
+        scheduleOrExecute(pending);
     }
 
-    @Async("auditLogExecutor")
+    /**
+     * Log failure - automatically handles transaction state
+     */
     public void logFailure(AuditEventType eventType, String email, String reason) {
+        PendingAuditLog pending = new PendingAuditLog(
+                AuditLogEntry.failure(eventType, email, reason),
+                false,
+                null,
+                email,
+                reason
+        );
+        scheduleOrExecute(pending);
+    }
+
+    /**
+     * Force immediate logging (bypasses transaction buffer)
+     * Use for non-transactional contexts or when you need guaranteed logging
+     */
+    public void logSuccessImmediately(AuditEventType eventType, User user, String additionalInfo) {
+        AuditLogEntry entry = AuditLogEntry.success(eventType, user, additionalInfo);
+        executeLog(entry, true, user, null, additionalInfo);
+    }
+
+    public void logFailureImmediately(AuditEventType eventType, String email, String reason) {
         AuditLogEntry entry = AuditLogEntry.failure(eventType, email, reason);
+        executeLog(entry, false, null, email, reason);
+    }
+
+    // ==========================================
+    // TRANSACTION MANAGEMENT
+    // ==========================================
+
+    private void scheduleOrExecute(PendingAuditLog pending) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            // No active transaction - execute immediately
+            executeLog(pending.entry, pending.isSuccess, pending.user, pending.email, pending.info);
+            return;
+        }
+
+        // Buffer for after-commit
+        pendingLogs.get().add(pending);
+
+        // Register synchronization only once
+        if (pendingLogs.get().size() == 1) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            List<PendingAuditLog> logs = pendingLogs.get();
+                            log.debug("Transaction committed, flushing {} audit logs", logs.size());
+
+                            logs.forEach(pending ->
+                                    executeLog(pending.entry, pending.isSuccess,
+                                            pending.user, pending.email, pending.info)
+                            );
+
+                            pendingLogs.remove();
+                        }
+
+                        @Override
+                        public void afterCompletion(int status) {
+                            if (status == STATUS_ROLLED_BACK) {
+                                int discarded = pendingLogs.get().size();
+                                log.warn("⚠️ Transaction ROLLED BACK - discarding {} audit logs to prevent inconsistency",
+                                        discarded);
+
+                                // Optional: Log the rollback itself (immediately, not buffered)
+                                if (discarded > 0) {
+                                    logRollbackEvent(pendingLogs.get());
+                                }
+
+                                pendingLogs.remove();
+                            }
+                        }
+                    }
+            );
+        }
+    }
+
+    private void executeLog(AuditLogEntry entry, boolean isSuccess,
+                            User user, String email, String info) {
+        if (isSuccess) {
+            processSuccessLog(entry, user, info);
+        } else {
+            processFailureLog(entry, email, info);
+        }
+    }
+
+    /**
+     * Execute log asynchronously - called AFTER transaction commit
+     * or immediately for non-transactional contexts
+     */
+    @Async("auditLogExecutor")
+    protected void processSuccessLog(AuditLogEntry entry, User user, String info) {
         processLog(entry);
     }
 
-    private void processLog(AuditLogEntry entry) {
-        if (entry.getEventType() != null &&
-                AuditEventType.valueOf(entry.getEventType()).shouldLogToElasticsearch()) {
-            logToElasticsearch(entry);
-        }
+    @Async("auditLogExecutor")
+    protected void processFailureLog(AuditLogEntry entry, String email, String info) {
+        processLog(entry);
+    }
 
-        if (entry.getEventType() != null &&
-                AuditEventType.valueOf(entry.getEventType()).shouldPersistToDatabase()) {
-            auditDbWriter.saveToDatabase(entry);
+    /**
+     * Process the log entry synchronously within the async thread
+     * This sends to both ELK and DB as needed
+     */
+    private void processLog(AuditLogEntry entry) {
+        try {
+            // Send to Elasticsearch
+            if (entry.getEventType() != null &&
+                    AuditEventType.valueOf(entry.getEventType()).shouldLogToElasticsearch()) {
+                logToElasticsearch(entry);
+            }
+
+            // Send to PostgresSQL
+            if (entry.getEventType() != null &&
+                    AuditEventType.valueOf(entry.getEventType()).shouldPersistToDatabase()) {
+                auditDbWriter.saveToDatabase(entry);
+            }
+        } catch (Exception e) {
+            log.error("Failed to process audit log for event: {}", entry.getEventType(), e);
         }
     }
 
+    /**
+     * Log the fact that a transaction rolled back (for troubleshooting)
+     */
+    private void logRollbackEvent(List<PendingAuditLog> discardedLogs) {
+        try {
+            StringBuilder msg = new StringBuilder("Transaction rollback prevented logging of: ");
+            discardedLogs.forEach(p -> msg.append(p.entry.getEventType()).append(", "));
+
+            log.warn("🔄 ROLLBACK DETECTED: {}", msg);
+
+            // Optionally send a single "rollback occurred" event to ELK for debugging
+            // This is sent immediately and not buffered
+            AuditLogEntry rollbackEntry = AuditLogEntry.builder()
+                    .eventType("TRANSACTION_ROLLBACK")
+                    .message(msg.toString())
+                    .timestamp(Instant.now())
+                    .build();
+
+            logToElasticsearch(rollbackEntry);
+
+        } catch (Exception e) {
+            log.error("Failed to log rollback event", e);
+        }
+    }
 
     /**
      * Log to Elasticsearch via Logstash (using structured JSON)
-     * Logback + Logstash encoder will format this properly
      */
     private void logToElasticsearch(AuditLogEntry entry) {
         try {
-            // Use Logstash markers for structured logging
-            switch (AuditEventType.valueOf(entry.getEventType()).getLevel()) {
+            AuditEventType eventType = AuditEventType.valueOf(entry.getEventType());
+
+            switch (eventType.getLevel()) {
                 case DEBUG -> log.debug(Markers.appendRaw("audit", entry.toJsonString()),
                         "AUDIT: {}", entry.getMessage());
                 case INFO -> log.info(Markers.appendRaw("audit", entry.toJsonString()),
@@ -116,27 +266,30 @@ public class ELKAuditService {
     }
 
     // ==========================================
-    // QUERY METHODS (PostgreSQL only for compliance)
+    // QUERY METHODS
     // ==========================================
 
     public List<AuthAuditLog> getUserAuditLogs(Long userId) {
         return authAuditLogRepository.findByUserIdOrderByTimestampDesc(userId);
     }
 
-//    public List<AuthAuditLog> getCriticalSecurityEvents(LocalDateTime since) {
-//        // Query PostgreSQL for critical events (for compliance reports)
-//        return authAuditLogRepository.findCriticalEventsSince(since);
-//    }
-
-    /**
-     * Clean up OLD PostgreSQL logs (keep only 90 days for compliance)
-     * Elasticsearch has its own retention policy (ILM)
-     */
     @Scheduled(cron = "${app.security.audit.cleanup.cron:0 0 3 * * ?}")
     @Transactional
     public void cleanupOldDatabaseLogs() {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(90);
         int deleted = authAuditLogRepository.deleteOldLogs(cutoff);
-        log.info("🧹 PostgreSQL audit cleanup: Removed {} logs older than {}", deleted, cutoff);
+        log.info("🧹 PostgresSQL audit cleanup: Removed {} logs older than {}", deleted, cutoff);
     }
+
+    // ==========================================
+    // HELPER CLASSES
+    // ==========================================
+
+    private record PendingAuditLog(
+            AuditLogEntry entry,
+            boolean isSuccess,
+            User user,
+            String email,
+            String info
+    ) {}
 }

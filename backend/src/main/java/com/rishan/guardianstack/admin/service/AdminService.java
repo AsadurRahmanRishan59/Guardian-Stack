@@ -5,7 +5,6 @@ import com.rishan.guardianstack.admin.dto.ExtendAccountRequest;
 import com.rishan.guardianstack.auth.model.*;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
-import com.rishan.guardianstack.auth.service.AuthAuditService;
 import com.rishan.guardianstack.auth.service.MailService;
 import com.rishan.guardianstack.core.exception.MultipleFieldValidationException;
 import com.rishan.guardianstack.core.exception.ResourceNotFoundException;
@@ -30,7 +29,7 @@ public class AdminService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final MailService mailService;
-    private final AuthAuditService authAuditService;
+//    private final AuthAuditService authAuditService;
 
     @Value("${app.security.employee.default-contract-days}")
     private int defaultContractDays;

@@ -72,7 +72,8 @@ public class AuthServiceImpl implements AuthService {
         validateSignUpRequest(request.username(), request.email(), request.password(), fieldErrors);
 
         if (userRepository.existsByEmail(request.email())) {
-            elkAuditService.logFailure(
+            // IMMEDIATE - Log before throwing exception (no transaction modification yet)
+            elkAuditService.logFailureImmediately(
                     AuditEventType.SIGNUP_FAILED,
                     request.email(),
                     "Email already registered"
@@ -99,6 +100,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         userRepository.save(user);
 
+        // BUFFERED - Only logged if transaction commits successfully
         elkAuditService.logSuccess(
                 AuditEventType.SIGNUP_INITIATED,
                 user,
@@ -128,6 +130,7 @@ public class AuthServiceImpl implements AuthService {
         validateEmailOnly(email);
         User user = verificationService.verifyEmailVerificationToken(email, otp);
 
+        // BUFFERED - Only logged if user activation succeeds
         elkAuditService.logSuccess(
                 AuditEventType.EMAIL_VERIFIED,
                 user,
@@ -161,7 +164,8 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email, "email"));
 
         if (user.isEnabled()) {
-            elkAuditService.logFailure(
+            // IMMEDIATE - Log before throwing exception
+            elkAuditService.logFailureImmediately(
                     AuditEventType.OTP_RESENT,
                     email,
                     "Account already verified"
@@ -172,6 +176,7 @@ public class AuthServiceImpl implements AuthService {
         String newOtp = verificationService.createEmailVerificationToken(user);
         mailService.sendVerificationEmail(user.getEmail(), user.getUsername(), newOtp);
 
+        // BUFFERED - Only logged if OTP creation and email sending succeed
         elkAuditService.logSuccess(
                 AuditEventType.OTP_RESENT,
                 user,
@@ -189,8 +194,10 @@ public class AuthServiceImpl implements AuthService {
         String email = loginRequestDTO.email();
         User user = userRepository.findByEmail(email).orElse(null);
 
+        // PRE-TRANSACTION CHECKS - Use IMMEDIATE logging
         if (user != null && user.isAccountLocked() && !user.isAccountNonLocked()) {
-            elkAuditService.logFailure(
+            // IMMEDIATE - Account is already locked, no DB change
+            elkAuditService.logFailureImmediately(
                     AuditEventType.LOGIN_FAILED,
                     email,
                     "Account locked until " + user.getLockedUntil()
@@ -205,7 +212,8 @@ public class AuthServiceImpl implements AuthService {
 
         if (user != null) {
             if (!user.isAccountNonExpired()) {
-                elkAuditService.logFailure(
+                // IMMEDIATE - Account expiry is pre-existing state
+                elkAuditService.logFailureImmediately(
                         AuditEventType.LOGIN_FAILED,
                         email,
                         "Account expired on " + user.getAccountExpiryDate()
@@ -219,7 +227,8 @@ public class AuthServiceImpl implements AuthService {
             }
 
             if (!user.isCredentialsNonExpired()) {
-                elkAuditService.logFailure(
+                // IMMEDIATE - Credentials expiry is pre-existing state
+                elkAuditService.logFailureImmediately(
                         AuditEventType.LOGIN_FAILED,
                         email,
                         "Password expired on " + user.getCredentialsExpiryDate()
@@ -231,6 +240,8 @@ public class AuthServiceImpl implements AuthService {
                 );
             }
         }
+
+        // AUTHENTICATION ATTEMPT
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
@@ -240,17 +251,23 @@ public class AuthServiceImpl implements AuthService {
                     )
             );
         } catch (DisabledException e) {
-            elkAuditService.logFailure(
+            // IMMEDIATE - Log before throwing
+            elkAuditService.logFailureImmediately(
                     AuditEventType.LOGIN_FAILED,
                     email,
                     "Account is disabled"
             );
             throw e;
         } catch (BadCredentialsException e) {
+            // CRITICAL: Failed login will modify user (increment counter)
+            // But we log IMMEDIATELY because if the transaction rolls back,
+            // we still want to know about the failed attempt
             if (user != null) {
-                handleFailedLogin(user, request);
+                handleFailedLogin(user, request); // This modifies user in transaction
             }
-            elkAuditService.logFailure(
+
+            // IMMEDIATE - Security event, log even if transaction fails
+            elkAuditService.logFailureImmediately(
                     AuditEventType.LOGIN_FAILED,
                     email,
                     "Invalid credentials"
@@ -261,7 +278,8 @@ public class AuthServiceImpl implements AuthService {
                 handleFailedLogin(user, request);
             }
 
-            elkAuditService.logFailure(
+            // IMMEDIATE - Security event
+            elkAuditService.logFailureImmediately(
                     AuditEventType.LOGIN_FAILED,
                     email,
                     e.getMessage()
@@ -286,12 +304,13 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getEmail(), request);
 
         List<String> warnings = new ArrayList<>();
+
+        // Password expiry warning
         if (user != null && user.isPasswordExpiringWithinDays(14)) {
             long daysLeft = user.getDaysUntilPasswordExpiry();
-
-
             warnings.add("Your password will expire in " + daysLeft + " days. Please update it soon.");
 
+            // BUFFERED - Only log if login completes successfully
             elkAuditService.logSuccess(
                     AuditEventType.PASSWORD_EXPIRY_WARNING,
                     user,
@@ -303,23 +322,21 @@ public class AuthServiceImpl implements AuthService {
                     user.getUsername(),
                     daysLeft
             );
-
         }
 
-        // Check for expiring account (warn if < 7 days)
+        // Account expiry warning
         if (user != null && user.getDaysUntilAccountExpiry() > 0 &&
                 user.getDaysUntilAccountExpiry() <= 7) {
             long daysLeft = user.getDaysUntilAccountExpiry();
-
             warnings.add("Your account access will expire in " + daysLeft + " days.");
 
+            // BUFFERED - Only log if login completes successfully
             elkAuditService.logSuccess(
                     AuditEventType.ACCOUNT_EXPIRY_WARNING,
                     user,
                     daysLeft + " days remaining"
             );
 
-            // Send warning email (async)
             mailService.sendAccountExpiryWarning(
                     user.getEmail(),
                     user.getUsername(),
@@ -327,6 +344,7 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
+        // BUFFERED - Only logged if entire login flow succeeds
         elkAuditService.logSuccess(
                 AuditEventType.LOGIN_SUCCESS,
                 user,
@@ -347,9 +365,7 @@ public class AuthServiceImpl implements AuthService {
                                 .map(GrantedAuthority::getAuthority)
                                 .toList()
                 ));
-
     }
-
 
     @Override
     @Transactional
@@ -370,6 +386,13 @@ public class AuthServiceImpl implements AuthService {
                             httpRequest
                     );
 
+                    // BUFFERED - Only logged if token rotation succeeds
+                    elkAuditService.logSuccess(
+                            AuditEventType.TOKEN_REFRESHED,
+                            user,
+                            "Access token refreshed"
+                    );
+
                     return new LoginResponseDTO(
                             newJwtToken,
                             newRefreshToken.getToken(),
@@ -383,8 +406,16 @@ public class AuthServiceImpl implements AuthService {
                             )
                     );
                 })
-                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
-                        "Refresh token is not in database!"));
+                .orElseThrow(() -> {
+                    // IMMEDIATE - Token not found, no transaction involved
+                    elkAuditService.logFailureImmediately(
+                            AuditEventType.TOKEN_EXPIRED,
+                            "unknown",
+                            "Refresh token not in database: " + requestRefreshToken
+                    );
+                    return new TokenRefreshException(requestRefreshToken,
+                            "Refresh token is not in database!");
+                });
     }
 
     @Override
@@ -399,6 +430,7 @@ public class AuthServiceImpl implements AuthService {
             // Revoke the token
             refreshTokenService.revokeToken(refreshToken);
 
+            // BUFFERED - Only logged if token revocation succeeds
             elkAuditService.logSuccess(
                     AuditEventType.LOGOUT,
                     user,
@@ -406,8 +438,8 @@ public class AuthServiceImpl implements AuthService {
             );
 
         } catch (InvalidTokenException e) {
-
-            elkAuditService.logFailure(
+            // IMMEDIATE - Invalid token, log before throwing
+            elkAuditService.logFailureImmediately(
                     AuditEventType.LOGOUT,
                     "unknown",
                     e.getMessage()
@@ -415,7 +447,6 @@ public class AuthServiceImpl implements AuthService {
             throw e;
         }
     }
-
 
     @Override
     @Transactional
@@ -426,24 +457,29 @@ public class AuthServiceImpl implements AuthService {
         // Revoke all tokens for this user
         refreshTokenService.revokeAllUserTokens(user);
 
+        // BUFFERED - Only logged if all token revocations succeed
         elkAuditService.logSuccess(
                 AuditEventType.LOGOUT_ALL_DEVICES,
                 user,
                 "Logged out from all devices"
         );
     }
-// ==========================================
-// 3. PASSWORD RECOVERY
-// ==========================================
+
+    // ==========================================
+    // 3. PASSWORD RECOVERY
+    // ==========================================
 
     @Override
+    @Transactional
     public void initiatePasswordReset(String email) {
         validateEmailOnly(email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
         String otp = verificationService.createPasswordResetToken(user);
         mailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), otp);
 
+        // BUFFERED - Only logged if OTP creation succeeds
         elkAuditService.logSuccess(
                 AuditEventType.PASSWORD_RESET_INITIATED,
                 user,
@@ -461,7 +497,12 @@ public class AuthServiceImpl implements AuthService {
         validateSignUpRequest(user.getUsername(), request.email(), request.newPassword(), fieldErrors);
 
         if (!fieldErrors.isEmpty()) {
-            elkAuditService.logFailure(AuditEventType.PASSWORD_RESET_FAILED, request.email(), "Policy validation failed");
+            // IMMEDIATE - Log before throwing validation exception
+            elkAuditService.logFailureImmediately(
+                    AuditEventType.PASSWORD_RESET_FAILED,
+                    request.email(),
+                    "Policy validation failed"
+            );
             throw new MultipleFieldValidationException(fieldErrors);
         }
 
@@ -474,12 +515,14 @@ public class AuthServiceImpl implements AuthService {
         verificationTokenRepository.deleteByUserAndTokenType(user, TokenType.PASSWORD_RESET.name());
         refreshTokenService.revokeAllUserTokens(user);
 
+        // BUFFERED - Only logged if password reset completes successfully
         elkAuditService.logSuccess(
                 AuditEventType.PASSWORD_RESET_COMPLETED,
                 user,
                 "Password reset successful"
         );
     }
+
     // ==========================================
     // 4. ACCOUNT SECURITY
     // ==========================================
@@ -493,6 +536,7 @@ public class AuthServiceImpl implements AuthService {
         user.resetFailedAttempts();
         userRepository.save(user);
 
+        // BUFFERED - Only logged if unlock succeeds
         elkAuditService.logSuccess(
                 AuditEventType.ACCOUNT_UNLOCKED,
                 user,
@@ -500,11 +544,19 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+    /**
+     * CRITICAL: This method logs IMMEDIATELY even though it's in a transaction.
+     * Reason: If incrementing fails, we still want to know about the failed login attempt.
+     * The ACCOUNT_LOCKED event is buffered because it only matters if the lock succeeds.
+     */
     private void handleFailedLogin(User user, HttpServletRequest request) {
         user.incrementFailedAttempts();
 
         if (user.getFailedLoginAttempts() >= maxLoginAttempts) {
             user.lockAccount(lockoutDurationMinutes);
+
+            // BUFFERED - Only log lock if the transaction commits
+            // (If lock fails to save, we don't want to falsely claim account was locked)
             elkAuditService.logSuccess(
                     AuditEventType.ACCOUNT_LOCKED,
                     user,
@@ -515,9 +567,9 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
     }
 
-// ==========================================
-// 4. VALIDATION HELPERS
-// ==========================================
+    // ==========================================
+    // 5. VALIDATION HELPERS
+    // ==========================================
 
     private void validateSignUpRequest(String username, String email, String password, Map<String, String> fieldErrors) {
         List<String> passwordErrors = passwordPolicyValidator.validate(password, username);

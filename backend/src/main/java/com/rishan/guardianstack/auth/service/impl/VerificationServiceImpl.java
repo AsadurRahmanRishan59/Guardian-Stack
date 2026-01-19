@@ -69,12 +69,16 @@ public class VerificationServiceImpl implements VerificationService {
 
         VerificationToken token = tokenRepository
                 .findByUserAndTokenTypeAndVerifiedFalse(user, TokenType.EMAIL_VERIFICATION.name())
-                .orElseThrow(() -> handleFailure(email, AuditEventType.EMAIL_VERIFICATION_FAILED, "No pending verification found"));
+                .orElseThrow(() -> handleFailure(
+                        email,
+                        AuditEventType.EMAIL_VERIFICATION_FAILED,
+                        "No pending verification found"
+                ));
 
-        // 1. Centralized Check
+        // Perform OTP check (will log failures immediately)
         performOtpCheck(token, otp, email, AuditEventType.EMAIL_VERIFICATION_FAILED);
 
-        // 2. Finalize (Enable user)
+        // Finalize verification
         token.setVerified(true);
         token.setVerifiedAt(LocalDateTime.now());
         user.setEnabled(true);
@@ -82,7 +86,13 @@ public class VerificationServiceImpl implements VerificationService {
         tokenRepository.save(token);
         userRepository.save(user);
 
-        elkAuditService.logSuccess(AuditEventType.EMAIL_VERIFIED, user, "Email verified successfully");
+        // BUFFERED - Only logged if user activation succeeds
+        elkAuditService.logSuccess(
+                AuditEventType.EMAIL_VERIFIED,
+                user,
+                "Email verified successfully"
+        );
+
         return user;
     }
 
@@ -93,69 +103,131 @@ public class VerificationServiceImpl implements VerificationService {
 
         VerificationToken token = tokenRepository
                 .findByUserAndTokenTypeAndVerifiedFalse(user, TokenType.PASSWORD_RESET.name())
-                .orElseThrow(() -> handleFailure(email, AuditEventType.PASSWORD_RESET_FAILED, "Invalid or missing reset code"));
+                .orElseThrow(() -> handleFailure(
+                        email,
+                        AuditEventType.PASSWORD_RESET_FAILED,
+                        "Invalid or missing reset code"
+                ));
 
-        // 1. Centralized Check
+        // Perform OTP check (will log failures immediately)
         performOtpCheck(token, otp, email, AuditEventType.PASSWORD_RESET_FAILED);
 
-        // 2. Consume Token (Prevents Replay)
+        // Consume token (prevents replay)
         token.setVerified(true);
         token.setVerifiedAt(LocalDateTime.now());
         tokenRepository.save(token);
 
-        elkAuditService.logSuccess(AuditEventType.PASSWORD_RESET_INITIATED, user, "Reset OTP verified");
+        // BUFFERED - Only logged if token verification succeeds
+        elkAuditService.logSuccess(
+                AuditEventType.PASSWORD_RESET_INITIATED,
+                user,
+                "Reset OTP verified"
+        );
+
         return user;
     }
 
     // ==========================================
-    // CORE LOGIC (THE "CONSISTENCY" FIX)
+    // CORE VALIDATION LOGIC
     // ==========================================
 
-    private void performOtpCheck(VerificationToken token, String providedOtp, String email, AuditEventType event) {
-        // Step 1: Check Expiry and Increment Attempts
-        // We use saveAndFlush to ensure the attempt is recorded even if the OTP check fails
+    /**
+     * Centralized OTP validation with immediate failure logging
+     *
+     * CRITICAL: Failures are logged IMMEDIATELY because:
+     * 1. Invalid OTP attempts are security events (even if transaction rolls back)
+     * 2. We increment attempt counter BEFORE checking OTP (need to track brute force)
+     * 3. If transaction fails, we still want to know about the failed attempt
+     */
+    private void performOtpCheck(VerificationToken token, String providedOtp,
+                                 String email, AuditEventType event) {
+        // Step 1: Validate token state and increment attempts
+        // saveAndFlush ensures attempt is recorded even if OTP check fails
         validateTokenState(token, email, event);
 
-        // Step 2: Secret Comparison
+        // Step 2: Compare OTP
         if (!token.getToken().equals(providedOtp)) {
             int remaining = maxVerificationAttempts - token.getVerificationAttempts();
-            elkAuditService.logFailure(event, email, "Incorrect OTP entry");
+
+            // IMMEDIATE - Security event (failed OTP attempt)
+            // Must log even if transaction rolls back
+            elkAuditService.logFailureImmediately(
+                    event,
+                    email,
+                    String.format("Incorrect OTP entry (attempt %d/%d)",
+                            token.getVerificationAttempts(), maxVerificationAttempts)
+            );
 
             if (remaining <= 0) {
-                tokenRepository.delete(token); // Scrub the token if attempts exhausted
-                throw new InvalidTokenException("Maximum attempts exceeded. This code is now invalid.");
+                tokenRepository.delete(token);
+                throw new InvalidTokenException(
+                        "Maximum attempts exceeded. This code is now invalid."
+                );
             }
-            throw new InvalidTokenException("Invalid verification code. " + remaining + " attempts remaining.");
+
+            throw new InvalidTokenException(
+                    "Invalid verification code. " + remaining + " attempts remaining."
+            );
         }
     }
 
+    /**
+     * Validate token state and increment attempt counter
+     * Uses saveAndFlush to ensure attempt tracking survives rollbacks
+     */
     private void validateTokenState(VerificationToken token, String email, AuditEventType event) {
-        // 1. Check Expiry
+        // Check expiry
         if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
             tokenRepository.delete(token);
-            throw handleFailure(email, event, "Verification code has expired.");
+
+            // IMMEDIATE - Log expired token usage
+            elkAuditService.logFailureImmediately(
+                    event,
+                    email,
+                    "Verification code has expired"
+            );
+
+            throw new InvalidTokenException("Verification code has expired.");
         }
 
-        // 2. Check Attempts BEFORE incrementing
+        // Check attempts BEFORE incrementing
         if (token.getVerificationAttempts() >= maxVerificationAttempts) {
             tokenRepository.delete(token);
-            throw handleFailure(email, event, "Maximum verification attempts exceeded.");
+
+            // IMMEDIATE - Log max attempts exceeded
+            elkAuditService.logFailureImmediately(
+                    event,
+                    email,
+                    "Maximum verification attempts exceeded"
+            );
+
+            throw new InvalidTokenException("Maximum verification attempts exceeded.");
         }
 
-        // 3. Increment and push to DB
+        // Increment and persist immediately
+        // This ensures the attempt is counted even if the OTP is wrong
+        // and the transaction rolls back
         token.incrementAttempts();
         tokenRepository.saveAndFlush(token);
     }
 
     // ==========================================
-    // HELPERS & HOUSEKEEPING
+    // TOKEN CREATION & MANAGEMENT
     // ==========================================
 
+    /**
+     * Creates a new verification token
+     * BUFFERED logging - only logged if token creation succeeds
+     */
     private String createTokenInternal(User user, TokenType type, AuditEventType auditEvent) {
+        // Check cooldown
         checkCooldown(user, type);
+
+        // Clean up old tokens
         tokenRepository.deleteByUserAndTokenType(user, type.name());
         tokenRepository.flush();
 
+        // Generate and save new token
         String otp = generateOTP();
         VerificationToken token = VerificationToken.builder()
                 .token(otp)
@@ -167,40 +239,88 @@ public class VerificationServiceImpl implements VerificationService {
                 .build();
 
         tokenRepository.save(token);
-        elkAuditService.logSuccess(auditEvent, user, type + " OTP generated");
+
+        // BUFFERED - Only logged if token save succeeds
+        elkAuditService.logSuccess(
+                auditEvent,
+                user,
+                type + " OTP generated (expires in " + expiryMinutes + " minutes)"
+        );
+
         return otp;
     }
 
+    /**
+     * Enforces cooldown period between OTP requests
+     * IMMEDIATE logging for cooldown violations
+     */
     private void checkCooldown(User user, TokenType type) {
         tokenRepository.findFirstByUserAndTokenTypeOrderByCreatedAtDesc(user, type.name())
                 .ifPresent(lastToken -> {
-                    long elapsed = Duration.between(lastToken.getCreatedAt(), LocalDateTime.now()).getSeconds();
+                    long elapsed = Duration.between(
+                            lastToken.getCreatedAt(),
+                            LocalDateTime.now()
+                    ).getSeconds();
+
                     if (elapsed < cooldownSeconds) {
                         long wait = cooldownSeconds - elapsed;
-                        throw new VerificationException("Please wait " + wait + " seconds before requesting a new code.");
+
+                        // IMMEDIATE - Rate limiting event
+                        elkAuditService.logFailureImmediately(
+                                AuditEventType.RATE_LIMIT_EXCEEDED,
+                                user.getEmail(),
+                                String.format("OTP cooldown: %d seconds remaining", wait)
+                        );
+
+                        throw new VerificationException(
+                                "Please wait " + wait + " seconds before requesting a new code."
+                        );
                     }
                 });
     }
 
+    // ==========================================
+    // CLEANUP & UTILITIES
+    // ==========================================
+
     @Scheduled(cron = "0 0 * * * *") // Every hour
     @Transactional
     public void cleanupExpiredTokens() {
-        tokenRepository.deleteByExpiryDateBefore(LocalDateTime.now());
+        int deleted = tokenRepository.deleteByExpiryDateBefore(LocalDateTime.now());
+        if (deleted > 0) {
+            log.info("🧹 Cleaned up {} expired verification tokens", deleted);
+        }
     }
 
+    /**
+     * Get user by email with immediate failure logging
+     */
     private User getUserByEmail(String email, AuditEventType event) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    elkAuditService.logFailure(event, email, "User not found");
+                    // IMMEDIATE - User not found
+                    elkAuditService.logFailureImmediately(
+                            event,
+                            email,
+                            "User not found"
+                    );
                     return new ResourceNotFoundException("User not found", "email");
                 });
     }
 
+    /**
+     * Helper to log failure and create exception
+     * Always uses IMMEDIATE logging
+     */
     private InvalidTokenException handleFailure(String email, AuditEventType event, String reason) {
-        elkAuditService.logFailure(event, email, reason);
+        // IMMEDIATE - Verification failure
+        elkAuditService.logFailureImmediately(event, email, reason);
         return new InvalidTokenException(reason);
     }
 
+    /**
+     * Generate cryptographically secure OTP
+     */
     private String generateOTP() {
         return RANDOM.ints(otpLength, 0, OTP_CHARACTERS.length())
                 .mapToObj(OTP_CHARACTERS::charAt)
