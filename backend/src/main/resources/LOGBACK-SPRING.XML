@@ -44,6 +44,7 @@
     <appender name="AUDIT_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/audit.json</file>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <immediateFlush>true</immediateFlush>
             <customFields>{"app":"${applicationName}","log_type":"audit"}</customFields>
             <!-- Include all MDC context for audit trail -->
             <includeMdcKeyName>requestId</includeMdcKeyName>
@@ -120,6 +121,10 @@
     <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE" additivity="false">
         <appender-ref ref="CONSOLE" />
     </logger>
+
+    <logger name="com.rishan.guardianstack.auth.service.AsyncAuditProcessor" level="DEBUG" additivity="false">
+        <appender-ref ref="ASYNC_AUDIT" />
+        <appender-ref ref="CONSOLE" /> </logger>
 
     <!-- Reduce noise from common libraries -->
     <logger name="org.springframework.web" level="WARN"/>
