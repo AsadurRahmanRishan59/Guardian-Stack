@@ -397,6 +397,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         else if (userAgent.contains("iPad")) return "iPad";
         else if (userAgent.contains("Android")) return "Android Device";
         else if (userAgent.contains("Linux")) return "Linux PC";
+        else if (userAgent.contains("Postman")) return "Postman";
 
         return "Unknown Device";
     }

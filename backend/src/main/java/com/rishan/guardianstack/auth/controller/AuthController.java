@@ -1,9 +1,6 @@
 package com.rishan.guardianstack.auth.controller;
 
-import com.rishan.guardianstack.auth.dto.request.LoginRequestDTO;
-import com.rishan.guardianstack.auth.dto.request.PasswordResetRequest;
-import com.rishan.guardianstack.auth.dto.request.SignUpRequestDTO;
-import com.rishan.guardianstack.auth.dto.request.TokenRefreshRequest;
+import com.rishan.guardianstack.auth.dto.request.*;
 import com.rishan.guardianstack.auth.dto.response.LoginResponseDTO;
 import com.rishan.guardianstack.auth.dto.response.UserResponse;
 import com.rishan.guardianstack.auth.service.AuthService;
@@ -13,7 +10,6 @@ import com.rishan.guardianstack.core.ratelimit.RateLimited;
 import com.rishan.guardianstack.core.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +38,8 @@ public class AuthController {
     @PostMapping("/public/signup")
     @RateLimited(maxAttempts = 10, timeWindow = 1, unit = TimeUnit.HOURS)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> registerUser(
-            @Valid @RequestBody SignUpRequestDTO signUpRequest, HttpServletRequest httpRequest) {
+            @Valid @RequestBody SignUpRequestDTO signUpRequest,
+            HttpServletRequest httpRequest) {
         LoginResponseDTO response = authService.registerPublicUser(signUpRequest, httpRequest);
 
         return ResponseEntity.ok(new ApiResponse<>(
@@ -56,10 +53,14 @@ public class AuthController {
     @PostMapping("/public/verify-otp")
     @RateLimited(maxAttempts = 10, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> verifyOtp(
-            @RequestParam String email,
-            @RequestParam String otp, HttpServletRequest httpRequest) {
+            @Valid @RequestBody VerifyOtpRequest request,
+            HttpServletRequest httpRequest) {
 
-        LoginResponseDTO response = authService.verifyAndLogin(email, otp, httpRequest);
+        LoginResponseDTO response = authService.verifyAndLogin(
+                request.email(),
+                request.otp(),
+                httpRequest
+        );
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
@@ -88,8 +89,12 @@ public class AuthController {
 
     @PostMapping("/public/resend-otp")
     @RateLimited(maxAttempts = 3, timeWindow = 10, unit = TimeUnit.MINUTES)
-    public ResponseEntity<ApiResponse<String>> resendOtp(@RequestParam String email, HttpServletRequest httpRequest) {
-        authService.resendVerificationCode(email,httpRequest);
+    public ResponseEntity<ApiResponse<String>> resendOtp(
+            @Valid @RequestBody ResendOtpRequest request,
+            HttpServletRequest httpRequest) {
+
+        authService.resendVerificationCode(request.email(), httpRequest);
+
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 "A new verification code has been sent to your email.",
@@ -101,9 +106,10 @@ public class AuthController {
     @PostMapping("/public/forgot-password")
     @RateLimited(maxAttempts = 3, timeWindow = 15, unit = TimeUnit.MINUTES)
     public ResponseEntity<ApiResponse<Void>> forgotPassword(
-            @Email(message = "Invalid Email") @RequestParam String email) {
+            @Valid @RequestBody ForgotPasswordRequest request) {
 
-        authService.initiatePasswordReset(email);
+        authService.initiatePasswordReset(request.email());
+
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 "Reset code sent to your email.",
@@ -118,6 +124,7 @@ public class AuthController {
             @Valid @RequestBody PasswordResetRequest request) {
 
         authService.resetPassword(request);
+
         return ResponseEntity.ok(new ApiResponse<>(
                 true,
                 "Password has been reset successfully. Please login.",
@@ -129,7 +136,8 @@ public class AuthController {
     @PostMapping("/public/refresh")
     @RateLimited(maxAttempts = 20, timeWindow = 1, unit = TimeUnit.HOURS)
     public ResponseEntity<ApiResponse<LoginResponseDTO>> refreshToken(
-            @Valid @RequestBody TokenRefreshRequest request, HttpServletRequest httpRequest) {
+            @Valid @RequestBody TokenRefreshRequest request,
+            HttpServletRequest httpRequest) {
 
         LoginResponseDTO response = authService.refreshAccessToken(request, httpRequest);
 
@@ -172,10 +180,6 @@ public class AuthController {
                 ));
     }
 
-    /**
-     * Logout endpoint - Revokes the current refresh token
-     * This logs the user out from the current device/session
-     */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @Valid @RequestBody TokenRefreshRequest request,
@@ -191,10 +195,6 @@ public class AuthController {
         ));
     }
 
-    /**
-     * Logout from all devices - Revokes all refresh tokens for the user
-     * This logs the user out from ALL devices/sessions
-     */
     @PostMapping("/logout-all")
     public ResponseEntity<ApiResponse<Void>> logoutAllDevices(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -214,15 +214,12 @@ public class AuthController {
         ));
     }
 
-    /**
-     * Admin endpoint to unlock a user account
-     */
     @PostMapping("/admin/unlock-account")
-    // @PreAuthorize("hasRole('ADMIN')") // Uncomment when you add Spring Security config
+    // @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> unlockAccount(
-            @RequestParam String email) {
+            @Valid @RequestBody UnlockAccountRequest request) {
 
-        authService.unlockAccount(email);
+        authService.unlockAccount(request.email());
 
         return ResponseEntity.ok(new ApiResponse<>(
                 true,

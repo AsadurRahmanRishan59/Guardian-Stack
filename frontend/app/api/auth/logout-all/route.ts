@@ -1,10 +1,10 @@
-// app/api/auth/logout/route.ts
+// app/api/auth/logout-all/route.ts
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { proxyToBackend } from '@/lib/api/proxy';
 
 export async function POST(request: NextRequest) {
-  const response = await proxyToBackend(request, '/api/auth/logout', { 
+  const response = await proxyToBackend(request, '/api/auth/logout-all', { 
     requireAuth: true 
   });
   

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const headers = await getAuthHeaders(false);
+        const headers = await getAuthHeaders(request, false);
 
         // Get query parameters
         const searchParams = request.nextUrl.searchParams;
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const headers = await getAuthHeaders(true);
+        const headers = await getAuthHeaders(request, true);
         const body = await request.json();
 
         // Forward request to Spring Boot
@@ -98,12 +98,14 @@ export async function POST(request: NextRequest) {
 
 
 // Helper function to get auth headers with JWT and XSRF tokens
-async function getAuthHeaders(nonGet: boolean): Promise<HeadersInit> {
+async function getAuthHeaders(request: NextRequest, nonGet: boolean): Promise<HeadersInit> {
     const jwtToken = (await cookies()).get('jwt_token')?.value;
     const xsrfToken = (await cookies()).get('XSRF-TOKEN')?.value;
+    const userAgent = request.headers.get('user-agent') || 'unknown';
 
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        'User-Agent': userAgent,
     };
 
     // Add JWT token

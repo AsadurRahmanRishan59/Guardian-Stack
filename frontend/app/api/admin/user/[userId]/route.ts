@@ -27,7 +27,7 @@ export async function GET(
             );
         }
 
-        const headers = await getAuthHeaders();
+        const headers = await getAuthHeaders(request);
 
         const response = await fetch(
             `${SPRING_BOOT_URL}/api/admin/user/${userId}`,
@@ -74,7 +74,7 @@ export async function PUT(
                 { status: 401 }
             );
         }
-        const headers = await getAuthHeaders();
+        const headers = await getAuthHeaders(request);
         console.log('Headers being sent to Spring Boot:', headers);
         const body = await request.json();
 
@@ -101,11 +101,13 @@ export async function PUT(
 }
 
 // Helper function to get auth headers with JWT and XSRF tokens
-async function getAuthHeaders(): Promise<HeadersInit> {
+async function getAuthHeaders(request: NextRequest): Promise<HeadersInit> {
     const jwtToken = (await cookies()).get('jwt_token')?.value;
+    const userAgent = request.headers.get('user-agent') || 'unknown';
     return {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${jwtToken}`
+        'Authorization': `Bearer ${jwtToken}`,
+        'User-Agent': userAgent,
     };
 }
 
