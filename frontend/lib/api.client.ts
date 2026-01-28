@@ -1,3 +1,4 @@
+//lib/api.client.ts
 import { ApiErrorResponse, ApiFetchOptions, ApiResponse, HttpMethod, ServerResponse } from "@/types/api.types";
 import { createServerError, handleServerError } from "./api/error-handling";
 
@@ -50,9 +51,8 @@ export async function apiFetch<T = unknown>(
     const baseUrl = getApiBaseUrl();
     const url = buildUrl(`${baseUrl}${endpoint}`, params);
 
-    // Get the XSRF token from document.cookie
+    // 1. Prepare Request
     const xsrfToken = getCookie('XSRF-TOKEN');
-
     const finalHeaders = new Headers(headers as Record<string, string>);
     finalHeaders.set('Content-Type', 'application/json');
 
@@ -61,13 +61,50 @@ export async function apiFetch<T = unknown>(
     }
 
     try {
-        const response = await fetch(url, {
+        let response = await fetch(url, {
             ...fetchOptions,
             method,
             headers: finalHeaders,
             credentials: 'include',
             body: body ? JSON.stringify(body) : undefined,
         });
+
+        // 2. INTERCEPT 401: Handle JWT Expiration
+        // Don't retry if we are already trying to refresh or sign in
+        const isAuthRequest = endpoint.includes('/auth/public/refresh') || endpoint.includes('/auth/public/signin');
+
+        if (response.status === 401 && !isAuthRequest) {
+            console.log('🔄 JWT Expired, attempting automatic refresh...');
+
+            // Call your Next.js BFF refresh route
+            const refreshResponse = await fetch(`${baseUrl}/auth/refresh`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+
+            if (refreshResponse.ok) {
+                console.log('✅ Refresh successful, retrying original request.');
+
+                // Re-read the NEW XSRF token issued during refresh
+                const newXsrfToken = getCookie('XSRF-TOKEN');
+                if (newXsrfToken) {
+                    finalHeaders.set('X-XSRF-TOKEN', newXsrfToken);
+                }
+
+                // Retry the original fetch
+                response = await fetch(url, {
+                    ...fetchOptions,
+                    method,
+                    headers: finalHeaders,
+                    credentials: 'include',
+                    body: body ? JSON.stringify(body) : undefined,
+                });
+            } else {
+                // Refresh failed (Session totally dead)
+                console.warn('❌ Refresh failed, session expired.');
+                // Optional: window.location.href = '/login?expired=true';
+            }
+        }
 
         return await parseResponse<T>(response);
     } catch (error) {
