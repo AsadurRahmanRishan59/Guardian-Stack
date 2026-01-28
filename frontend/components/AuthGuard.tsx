@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useCurrentUser } from "@/lib/hooks/useAuth";
 import { Loader2 } from "lucide-react";
+import { useCurrentUser } from "@/features/auth/auth.react.query";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -23,8 +23,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     if (!user || isError) {
       if (!redirecting.current) {
         redirecting.current = true;
-        console.warn("🔒 AuthGuard: Not authenticated → redirect to /login");
-        router.replace("/login");
+        console.warn("🔒 AuthGuard: Not authenticated → redirect to /signin");
+        router.replace("/signin");
       }
     }
   }, [user, isLoading, isError, router]);
@@ -51,7 +51,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
             "Failed to verify session. Please login again."}
         </p>
         <button
-          onClick={() => router.replace("/login")}
+          onClick={() => router.replace("/signin")}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
         >
           Go to Login

@@ -26,7 +26,7 @@ export function doResetPassword(request: PasswordResetRequest): Promise<ApiRespo
     return api.client.post('/auth/reset-password', request);
 }
 
-export function logout(): Promise<ApiResponse<null>> {
+export function logout(): Promise<ApiResponse<void>> {
     return api.client.post<null>('/auth/logout');
 }
 

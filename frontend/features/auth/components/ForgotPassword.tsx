@@ -124,7 +124,7 @@ export default function ForgotPassword() {
 
         <CardFooter className="flex justify-center border-t border-slate-100 dark:border-slate-800 py-6">
           <Link
-            href="/login"
+            href="/signin"
             className="group flex items-center text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
           >
             <ArrowLeft className="mr-2 h-3.5 w-3.5 transition-transform group-hover:-translate-x-1" />

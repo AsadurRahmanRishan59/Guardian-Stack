@@ -17,7 +17,7 @@ export interface UserResponse {
   userId: number;
   username: string;
   email: string;
-  roles: Role[];
+  roles: AppRole[];
   enabled: boolean;
 }
 

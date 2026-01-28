@@ -3,10 +3,10 @@ import { NextRequest } from 'next/server';
 import { proxyToBackend } from '@/lib/api/proxy';
 
 export async function POST(request: NextRequest) {
-  return proxyToBackend(request, '/api/auth/public/signin', { storeJwt: true });
+  return proxyToBackend(request, '/api/auth/public/signin', { storeTokens: true });
 }
 
-// app/api/auth/login/route.ts
+// app/api/auth/signin/route.ts
 // import { NextRequest, NextResponse } from 'next/server';
 // import { cookies } from 'next/headers';
 // import { handleServerError } from '@/lib/api/error-handling';

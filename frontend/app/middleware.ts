@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
     // 3. Skip the login route (since that's where the token is issued)
     const isApiAction = nextUrl.pathname.startsWith('/api/') && 
                         !['GET', 'HEAD', 'OPTIONS'].includes(method) &&
-                        !nextUrl.pathname.includes('/api/auth/login');
+                        !nextUrl.pathname.includes('/api/auth/signin');
 
     if (isApiAction) {
         const csrfCookie = cookies.get('XSRF-TOKEN')?.value;

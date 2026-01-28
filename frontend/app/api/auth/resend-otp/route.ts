@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { proxyToBackend } from '@/lib/api/proxy';
 
 export async function POST(request: NextRequest) {
-  return proxyToBackend(request, '/api/auth/public/resend-otp', { storeJwt: false });
+  return proxyToBackend(request, '/api/auth/public/resend-otp');
 }
 
 // app/api/auth/resend-otp/route.ts

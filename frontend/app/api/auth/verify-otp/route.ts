@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { proxyToBackend } from '@/lib/api/proxy';
 
 export async function POST(request: NextRequest) {
-  return proxyToBackend(request, '/api/auth/public/verify-otp', { storeJwt: true });
+  return proxyToBackend(request, '/api/auth/public/verify-otp', { storeTokens: true });
 }
 
 // app/api/auth/verify-otp/route.ts

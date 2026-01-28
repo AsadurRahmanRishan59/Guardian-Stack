@@ -4,9 +4,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useCurrentUser, useLogout } from '@/lib/hooks/useAuth';
+
 import { RoleGuard } from '@/components/RoleGuard';
 import { AppRole } from '@/types/auth.types';
+import { useCurrentUser, useLogout } from '@/features/auth/auth.react.query';
 
 export default function Navbar() {
   const { data: user, isLoading } = useCurrentUser();
@@ -54,7 +55,7 @@ export default function Navbar() {
               </Link>
 
               {/* Vouchers - Account Manager & Account User */}
-              <RoleGuard requiredRoles={[AppRole.ACCOUNT_MANAGER, AppRole.ACCOUNT_USER]}>
+              <RoleGuard requiredRoles={[AppRole.ADMIN, AppRole.MASTER_ADMIN,AppRole.EMPLOYEE, AppRole.USER]}>
                 <Link
                   href="/vouchers"
                   className="text-gray-600 hover:text-gray-800 px-3 py-2 rounded-md text-sm font-medium"
@@ -64,7 +65,7 @@ export default function Navbar() {
               </RoleGuard>
 
               {/* Account Manager Page - Account Manager only */}
-              <RoleGuard requiredRoles={AppRole.ACCOUNT_MANAGER}>
+              <RoleGuard requiredRoles={[AppRole.ADMIN, AppRole.MASTER_ADMIN,AppRole.EMPLOYEE]}>
                 <Link
                   href="/account-manager"
                   className="text-gray-600 hover:text-gray-800 px-3 py-2 rounded-md text-sm font-medium"
@@ -74,7 +75,7 @@ export default function Navbar() {
               </RoleGuard>
 
               {/* Admin Page - Admin only */}
-              <RoleGuard requiredRoles={AppRole.ADMIN}>
+              <RoleGuard requiredRoles={[AppRole.ADMIN, AppRole.MASTER_ADMIN]}>
                 <Link
                   href="/admin"
                   className="text-gray-600 hover:text-gray-800 px-3 py-2 rounded-md text-sm font-medium"

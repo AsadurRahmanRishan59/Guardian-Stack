@@ -226,7 +226,7 @@ export default function SignUpForm() {
 
           <div className="text-center">
             <p className="text-xs font-medium text-slate-500">
-              Already have an account? <Link href="/login" className="text-[#DAA520] font-bold hover:underline underline-offset-4">Log in here</Link>
+              Already have an account? <Link href="/signin" className="text-[#DAA520] font-bold hover:underline underline-offset-4">Log in here</Link>
             </p>
           </div>
         </CardContent>

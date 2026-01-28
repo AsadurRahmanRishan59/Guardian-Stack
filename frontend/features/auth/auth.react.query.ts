@@ -94,7 +94,7 @@ export function useLogout() {
         mutationFn: async () => await logout(),
         onSuccess: () => {
             queryClient.clear();
-            router.push('/login');
+            router.push('/signin');
         },
     });
 }

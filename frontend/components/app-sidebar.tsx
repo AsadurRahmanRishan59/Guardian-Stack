@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/sidebar";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCurrentUser } from "@/lib/hooks/useAuth";
 import { navigationConfig } from "@/lib/navigation-config";
 import { filterNavigationByRole } from "@/lib/utils/role-check";
+import { useCurrentUser } from "@/features/auth/auth.react.query";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const router = useRouter();

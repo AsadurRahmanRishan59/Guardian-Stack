@@ -27,7 +27,7 @@ export default function ProtectedRoute({
   useEffect(() => {
     // Not authenticated
     if (isError || (!isLoading && !user)) {
-      // router.push('/login');
+      // router.push('/signin');
       return;
     }
 
