@@ -70,30 +70,42 @@ public class RateLimitAspect {
         return joinPoint.proceed();
     }
 
-    // Helper to peek into method arguments (like LoginRequestDTO)
+    private String generateKey(ProceedingJoinPoint joinPoint, RateLimited rateLimited) {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) {
+            return "global-fallback-key";
+        }
+
+        HttpServletRequest request = attrs.getRequest();
+        String ip = getClientIp(request);
+        String method = joinPoint.getSignature().getName();
+
+        // Combine IP + UserAgent for a more specific fingerprint if user is not logged in
+        String userAgent = request.getHeader("User-Agent");
+        String fingerprint = (userAgent != null) ? String.valueOf(userAgent.hashCode()) : "no-ua";
+
+        return String.format("%s:%s:%s", method, ip, fingerprint);
+    }
+
     private String attemptToExtractEmail(ProceedingJoinPoint joinPoint) {
         for (Object arg : joinPoint.getArgs()) {
-            if (arg instanceof LoginRequestDTO dto) {
-                return dto.email();
+            if (arg == null) continue;
+
+            // Use Reflection or a shared interface to get email from any DTO
+            try {
+                // Check if the DTO has an email() method (for Records) or getEmail()
+                var method = arg.getClass().getMethod("email");
+                return (String) method.invoke(arg);
+            } catch (Exception e) {
+                try {
+                    var method = arg.getClass().getMethod("getEmail");
+                    return (String) method.invoke(arg);
+                } catch (Exception e2) {
+                    // Not a DTO with email, continue to next arg
+                }
             }
         }
         return "anonymous";
-    }
-
-    private String generateKey(ProceedingJoinPoint joinPoint, RateLimited rateLimited) {
-        HttpServletRequest request = ((ServletRequestAttributes)
-                RequestContextHolder.currentRequestAttributes()).getRequest();
-
-        String ip = AuditContext.get() != null ? AuditContext.get().getIpAddress() : "unknown";
-        String method = joinPoint.getSignature().getName();
-
-        // If custom key is provided, use it
-        if (!rateLimited.key().isEmpty()) {
-            return String.format("%s:%s:%s", method, rateLimited.key(), ip);
-        }
-
-        // Default: method + IP
-        return String.format("%s:%s", method, ip);
     }
 
     private String getClientIp(HttpServletRequest request) {
