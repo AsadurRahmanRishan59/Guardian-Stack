@@ -39,7 +39,7 @@ public class AuditLogEntry {
     private final Long userId;
 
     @JsonProperty("user.name")
-    private final String userName;
+    private final String username;
 
     // Network Fields
     @JsonProperty("source.ip")
@@ -92,7 +92,7 @@ public class AuditLogEntry {
                 .outcome("success")
                 .userEmail(user != null ? user.getEmail() : null)
                 .userId(user != null ? user.getUserId() : null)
-                .userName(user != null ? user.getUsername() : null)
+                .username(user != null ? user.getUsername() : null)
                 .sourceIp(context != null ? context.getIpAddress() : "unknown")
                 .userAgent(context != null ? context.getUserAgent() : "unknown")
                 .requestId(context != null ? context.getRequestId() : null)
@@ -123,7 +123,7 @@ public class AuditLogEntry {
                 .outcome("failure")
                 .userEmail(email)
                 .userId(null)
-                .userName(null)
+                .username(null)
                 .sourceIp(context != null ? context.getIpAddress() : "unknown")
                 .userAgent(context != null ? context.getUserAgent() : "unknown")
                 .requestId(context != null ? context.getRequestId() : null)

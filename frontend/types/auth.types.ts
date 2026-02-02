@@ -1,7 +1,7 @@
 // types/auth.types.ts
 
 export enum AppRole {
-  MASTER_ADMIN = "ROLE_MASTER_ADMIN,",
+  MASTER_ADMIN = "ROLE_MASTER_ADMIN",
   ADMIN = "ROLE_ADMIN",
   EMPLOYEE = "ROLE_EMPLOYEE",
   USER = "ROLE_USER"

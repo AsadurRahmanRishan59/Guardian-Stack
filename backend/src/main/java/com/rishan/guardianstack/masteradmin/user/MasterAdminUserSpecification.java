@@ -9,6 +9,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,7 +19,7 @@ public class MasterAdminUserSpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. Partial Match for Username (LIKE %name%)
+            // 1. Partial Match for Username
             if (StringUtils.hasText(criteria.username())) {
                 predicates.add(cb.like(cb.lower(root.get("username")),
                         "%" + criteria.username().toLowerCase() + "%"));
@@ -30,18 +31,39 @@ public class MasterAdminUserSpecification {
                         criteria.email().toLowerCase()));
             }
 
-            // 3. Boolean Flags (Lock, Enabled, Expiry)
-            // Note: In Search, we might want to make these Boolean objects
-            // to allow "Don't Filter" vs "True" vs "False"
-            predicates.add(cb.equal(root.get("accountNonLocked"), criteria.accountNonLocked()));
-            predicates.add(cb.equal(root.get("accountNonExpired"), criteria.accountNonExpired()));
-            predicates.add(cb.equal(root.get("enabled"), criteria.enabled()));
+            // 3. Boolean Flags - NULL-SAFE MAPPING
 
-            // 4. Role-based Filtering (Join logic)
+            // Handle Account Locked
+            if (criteria.accountLocked() != null) {
+                predicates.add(cb.equal(root.get("accountLocked"), criteria.accountLocked()));
+            }
+
+            // Handle Enabled
+            if (criteria.enabled() != null) {
+                predicates.add(cb.equal(root.get("enabled"), criteria.enabled()));
+            }
+
+            // Handle Account Non-Expired (This was the cause of your crash)
+            if (criteria.accountNonExpired() != null) {
+                if (criteria.accountNonExpired()) {
+                    // If we want NON-EXPIRED: Date must be null OR in the future
+                    predicates.add(cb.or(
+                            cb.isNull(root.get("accountExpiryDate")),
+                            cb.greaterThan(root.get("accountExpiryDate"), LocalDateTime.now())
+                    ));
+                } else {
+                    // If we want EXPIRED: Date must be NOT NULL AND in the past
+                    predicates.add(cb.and(
+                            cb.isNotNull(root.get("accountExpiryDate")),
+                            cb.lessThanOrEqualTo(root.get("accountExpiryDate"), java.time.LocalDateTime.now())
+                    ));
+                }
+            }
+
+            // 4. Role-based Filtering
             if (!CollectionUtils.isEmpty(criteria.roleIds())) {
                 Join<User, Role> roleJoin = root.join("roles");
                 predicates.add(roleJoin.get("roleId").in(criteria.roleIds()));
-                // Ensure distinct results if a user has multiple roles being filtered
                 query.distinct(true);
             }
 

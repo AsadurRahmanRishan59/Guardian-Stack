@@ -10,7 +10,7 @@ export default async function AdminLayout({
   children: ReactNode;
 }) {
   return (
-    <RoleGuard requiredRoles={[AppRole.ADMIN]}>
+    <RoleGuard requiredRoles={[AppRole.MASTER_ADMIN,AppRole.ADMIN]}>
       <>{children}</>
     </RoleGuard>
   );

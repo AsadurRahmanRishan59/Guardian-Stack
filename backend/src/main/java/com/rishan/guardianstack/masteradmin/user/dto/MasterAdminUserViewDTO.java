@@ -10,12 +10,13 @@ public record MasterAdminUserViewDTO(
         Long userId,
         String username,
         String email,
-        boolean accountNonLocked,
-        boolean accountNonExpired,
-        boolean enabled,
+        Boolean enabled,
+        Boolean accountLocked,
+        Boolean accountExpired,
+        Boolean credentialExpired,
         SignUpMethod signUpMethod,
-        Set<Role> roles,
+        Set<String> roles,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        String createdBy
 ) {
 }

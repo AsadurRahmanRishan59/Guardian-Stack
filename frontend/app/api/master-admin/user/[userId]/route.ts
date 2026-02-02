@@ -1,56 +1,65 @@
-// app/api/admin/user/[userId]/route.ts
+// app/api/master-admin/user/[userId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getBackendUrl } from '@/lib/api.utils';
+
 import { handleServerError } from '@/lib/api/error-handling';
+import { getBackendUrl } from '@/lib/api.client';
+import { proxyToBackend } from '@/lib/api/proxy';
 
-// GET - Get User by ID
-export async function GET(
-    request: NextRequest,
-    context: { params: Promise<{ userId: string }> }
-) {
-    try {
-        const SPRING_BOOT_URL = getBackendUrl();
+
+export async function GET(request: NextRequest,
+    context: { params: Promise<{ userId: string }> }) {
         const { userId } = await context.params;
-
-        // Check authentication
-        if (!(await checkAuth())) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    message: 'Not authenticated',
-                    statusCode: 401,
-                    data: null,
-                    timestamp: new Date().toISOString(),
-                },
-                { status: 401 }
-            );
-        }
-
-        const headers = await getAuthHeaders(request);
-
-        const response = await fetch(
-            `${SPRING_BOOT_URL}/api/admin/user/${userId}`,
-            {
-                method: 'GET',
-                headers,
-            }
-        );
-
-        const data = await response.json();
-
-        // If unauthorized, clear cookies
-        if (response.status === 401) {
-            (await cookies()).delete('jwt_token');
-            (await cookies()).delete('XSRF-TOKEN');
-        }
-
-        return NextResponse.json(data, { status: response.status });
-    } catch (error) {
-        const handledError = handleServerError(error);
-        return NextResponse.json(handledError, { status: handledError.statusCode });
-    }
+  return proxyToBackend(request, `/api/masteradmin/users/${userId}`, { requireAuth: true });
 }
+
+// // GET - Get User by ID
+// export async function GET(
+//     request: NextRequest,
+//     context: { params: Promise<{ userId: string }> }
+// ) {
+//     try {
+//         const SPRING_BOOT_URL = getBackendUrl();
+//         const { userId } = await context.params;
+
+//         // Check authentication
+//         if (!(await checkAuth())) {
+//             return NextResponse.json(
+//                 {
+//                     success: false,
+//                     message: 'Not authenticated',
+//                     statusCode: 401,
+//                     data: null,
+//                     timestamp: new Date().toISOString(),
+//                 },
+//                 { status: 401 }
+//             );
+//         }
+
+//         const headers = await getAuthHeaders(request);
+
+//         const response = await fetch(
+//             `${SPRING_BOOT_URL}/api/admin/user/${userId}`,
+//             {
+//                 method: 'GET',
+//                 headers,
+//             }
+//         );
+
+//         const data = await response.json();
+
+//         // If unauthorized, clear cookies
+//         if (response.status === 401) {
+//             (await cookies()).delete('jwt_token');
+//             (await cookies()).delete('XSRF-TOKEN');
+//         }
+
+//         return NextResponse.json(data, { status: response.status });
+//     } catch (error) {
+//         const handledError = handleServerError(error);
+//         return NextResponse.json(handledError, { status: handledError.statusCode });
+//     }
+// }
 
 // PUT - Update User by id
 export async function PUT(

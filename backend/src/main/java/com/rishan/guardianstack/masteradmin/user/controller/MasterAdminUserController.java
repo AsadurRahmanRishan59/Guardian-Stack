@@ -30,7 +30,7 @@ public class MasterAdminUserController {
      *
      * @param username          The username to search for (optional).
      * @param email             The email address to search for (optional).
-     * @param accountNonLocked  Filter for users with non-locked accounts (optional).
+     * @param accountLocked  Filter for users with non-locked accounts (optional).
      * @param accountNonExpired Filter for users with non-expired accounts (optional).
      * @param enabled           Filter for enabled users (optional).
      * @param roleIds           List of role IDs to filter users by (optional).
@@ -44,7 +44,7 @@ public class MasterAdminUserController {
     public ResponseEntity<PaginatedResponse<MasterAdminUserViewDTO>> getAllUsers(
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String email,
-            @RequestParam(required = false) Boolean accountNonLocked,
+            @RequestParam(required = false) Boolean accountLocked,
             @RequestParam(required = false) Boolean accountNonExpired,
             @RequestParam(required = false) Boolean enabled,
             @RequestParam(required = false) List<Integer> roleIds,
@@ -55,7 +55,7 @@ public class MasterAdminUserController {
             @RequestParam(defaultValue = "username") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDirection) {
         MasterAdminUserSearchCriteria searchCriteria = new MasterAdminUserSearchCriteria(
-                username, email, accountNonLocked, accountNonExpired, enabled, signUpMethod, roleIds, page, size, sortBy, sortDirection
+                username, email, accountLocked, accountNonExpired, enabled, signUpMethod, roleIds, page, size, sortBy, sortDirection
         );
         PaginatedResponse<MasterAdminUserViewDTO> response = masterAdminUserService.getAllUsers(searchCriteria);
         return ResponseEntity.ok(response);
@@ -100,5 +100,17 @@ public class MasterAdminUserController {
                         LocalDateTime.now()
                 )
         );
+    }
+
+    //filter options
+    @GetMapping("/filter-options")
+    public ResponseEntity<ApiResponse<MasterAdminUserFilterOptions>> getFilterOptions() {
+        MasterAdminUserFilterOptions options = masterAdminUserService.getFilterOptions();
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Filter options retrieved successfully",
+                        options,
+                        LocalDateTime.now()));
     }
 }

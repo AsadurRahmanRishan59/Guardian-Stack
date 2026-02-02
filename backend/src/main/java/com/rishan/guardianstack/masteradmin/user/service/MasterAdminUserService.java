@@ -39,4 +39,7 @@ public interface MasterAdminUserService {
      * @return the unique identifier of the updated user
      */
     Long updateUser(UpdateUserRequestDTO dto, Long userId);
+
+
+    MasterAdminUserFilterOptions getFilterOptions();
 }

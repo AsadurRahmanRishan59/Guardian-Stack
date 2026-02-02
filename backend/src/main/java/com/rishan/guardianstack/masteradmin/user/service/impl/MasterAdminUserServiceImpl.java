@@ -1,6 +1,7 @@
 package com.rishan.guardianstack.masteradmin.user.service.impl;
 
 import com.rishan.guardianstack.auth.model.Role;
+import com.rishan.guardianstack.auth.model.SignUpMethod;
 import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.auth.repository.RoleRepository;
 import com.rishan.guardianstack.auth.repository.UserRepository;
@@ -171,14 +172,21 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
 
     private Sort createSort(String sortBy, String sortDirection) {
         // Allowed sort fields for admin table
-        Set<String> allowedTableSortFields = Set.of("userId", "userName", "createdAt", "updatedAt");
+        Set<String> allowedTableSortFields = Set.of("userId", "username", "createdAt", "updatedAt");
 
-        String validatedSortBy = allowedTableSortFields.contains(sortBy) ? sortBy : "userName";
+        String validatedSortBy = allowedTableSortFields.contains(sortBy) ? sortBy : "username";
 
         Sort.Direction direction = "desc".equalsIgnoreCase(sortDirection)
                 ? Sort.Direction.DESC
                 : Sort.Direction.ASC;
 
         return Sort.by(direction, validatedSortBy);
+    }
+
+    public MasterAdminUserFilterOptions getFilterOptions() {
+        List<Role> roles = roleRepository.findAll();
+        List<SignUpMethod> signUpMethods = Arrays.stream(SignUpMethod.values()).toList();
+        return MasterAdminUserFilterOptions.create(signUpMethods, roles)
+                ;
     }
 }

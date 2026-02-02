@@ -1,6 +1,7 @@
 package com.rishan.guardianstack.masteradmin.user.dto;
 
 import jakarta.validation.constraints.*;
+
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -29,9 +30,9 @@ public record CreateUserRequestDTO(
         Integer passwordValidityDays, // Forces rotation after X days
 
         // --- ADMINISTRATIVE FLAGS ---
-        boolean enabled, // Usually true by default for new employees
+        Boolean enabled, // Usually true by default for new employees
 
 
-        boolean mustChangePassword // Security Best Practice: Force change on first login
+        Boolean mustChangePassword // Security Best Practice: Force change on first login
 ) {
 }

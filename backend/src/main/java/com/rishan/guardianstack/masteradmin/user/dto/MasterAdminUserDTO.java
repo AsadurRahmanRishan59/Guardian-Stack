@@ -15,10 +15,10 @@ public record MasterAdminUserDTO(
         SignUpMethod signUpMethod,
 
         // --- ACCOUNT STATUS & PERMISSIONS ---
-        boolean enabled,
-        boolean accountNonLocked,
-        boolean accountNonExpired,
-        boolean credentialsNonExpired,
+        Boolean enabled,
+        Boolean accountLocked,
+        Boolean accountExpired,
+        Boolean credentialsExpired,
 
         // --- SECURITY & LOGIN FORENSICS ---
         Integer failedLoginAttempts,

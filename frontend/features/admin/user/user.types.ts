@@ -1,17 +1,7 @@
 // features/admin/user/user.types.ts
 
-export enum AppRole {
-  ROLE_ADMIN = "ROLE_ADMIN",
-  ROLE_ACCOUNT_MANAGER = "ROLE_ACCOUNT_MANAGER",
-  ROLE_ACCOUNT_USER = "ROLE_ACCOUNT_USER",
-}
+import { AppRole, Role } from "@/types/auth.types";
 
-// Role interface (maps Role entity)
-export interface Role {
-  roleId: number;
-  roleName: AppRole;
-  description?: string | null;
-}
 export enum SignUpMethod {
   ADMIN_CREATED = "ADMIN_CREATED",
   Email = "Email"
@@ -22,7 +12,7 @@ export interface AdminUserView {
   email: string;
   signUpMethod: string;
   isTwoFactorEnabled: boolean;
-  roles: Role[];
+  roles: AppRole[];
   enabled: boolean;
   createdDate: string;
 }

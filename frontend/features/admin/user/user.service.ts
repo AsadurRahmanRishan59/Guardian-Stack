@@ -4,21 +4,21 @@ import { AdminUserCreateRequestDTO, AdminUserResponseDTO, AdminUserUpdateRequest
 
 
 export function getAllUsers(searchCriteria?: AdminUserViewSearchCriteria): Promise<ApiResponse<AdminUserView>> {
-    return api.client.get('/admin/user', searchCriteria);
+    return api.client.get('/master-admin/user', searchCriteria);
 }
 
 export function getUserById(userId:number): Promise<ApiResponse<AdminUserResponseDTO>> {
-    return api.client.get(`/admin/user/${userId}`);
+    return api.client.get(`/master-admin/user/${userId}`);
 }
 
 export function createUser(adminUserCreateRequestDTO: AdminUserCreateRequestDTO): Promise<ApiResponse<AdminUserResponseDTO>> {
-    return api.client.post('/admin/user', adminUserCreateRequestDTO);
+    return api.client.post('/master-admin/user', adminUserCreateRequestDTO);
 }
 
 export function updateUserById(adminUserUpdateRequestDTO:AdminUserUpdateRequestDTO,userId:number): Promise<ApiResponse<AdminUserResponseDTO>> {
-    return api.client.put(`/admin/user/${userId}`,adminUserUpdateRequestDTO);
+    return api.client.put(`/master-admin/user/${userId}`,adminUserUpdateRequestDTO);
 }
 
 export function getAdminUserViewFilterOptions(): Promise<ApiResponse<AdminUserViewFilterOptions>> {
-    return api.client.get('/admin/user/filter-options');
+    return api.client.get('/master-admin/user/filter-options');
 }

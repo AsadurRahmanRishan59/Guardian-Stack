@@ -106,8 +106,8 @@ export default function AdminUserViewTable({ data, onView, onEdit, onDelete }: A
         return (
           <div className="flex flex-wrap gap-1">
             {roles.map((role) => (
-              <Badge key={role.roleId} variant="outline" className="text-xs">
-                {role.roleName.replace("ROLE_", "")}
+              <Badge key={role} variant="outline" className="text-xs">
+                {role.replace("ROLE_", "")}
               </Badge>
             ))}
           </div>

@@ -25,7 +25,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useGetUserById } from "../user.react.query";
-import { AppRole, SignUpMethod } from "../user.types";
+import { SignUpMethod } from "../user.types";
+import { AppRole } from "@/types/auth.types";
 
 
 interface UserModalProps {
@@ -63,12 +64,12 @@ export default function AdminUserModal({
 
   const getRoleDisplayName = (role: AppRole) => {
     switch (role) {
-      case AppRole.ROLE_ADMIN:
+      case AppRole.EMPLOYEE:
+        return "Master Admin";
+      case AppRole.ADMIN:
         return "Admin";
-      case AppRole.ROLE_ACCOUNT_MANAGER:
-        return "Account Manager";
-      case AppRole.ROLE_ACCOUNT_USER:
-        return "Account User";
+      case AppRole.USER:
+        return "User";
       default:
         return role;
     }

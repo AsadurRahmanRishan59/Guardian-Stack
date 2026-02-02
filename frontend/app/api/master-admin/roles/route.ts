@@ -1,8 +1,8 @@
-// app/api/admin/roles/route.ts
+// app/api/master-admin/roles/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getBackendUrl } from '@/lib/api.utils';
 import { handleServerError } from '@/lib/api/error-handling';
+import { getBackendUrl } from '@/lib/api.client';
 
 // GET - Get All Roles
 export async function GET(request: NextRequest) {

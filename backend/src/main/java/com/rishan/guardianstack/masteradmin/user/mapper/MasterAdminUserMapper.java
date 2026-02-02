@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Set;
 
 @Component
@@ -79,17 +80,23 @@ public class MasterAdminUserMapper {
     }
 
     public MasterAdminUserViewDTO toMasterAdminUserViewDTO(User user) {
+        Set<String> roles = new HashSet<>();
+        user.getRoles().forEach(role ->
+                roles.add(role.getRoleName().name())
+        );
+        Boolean isCredentialExpired = user.getCredentialsExpiryDate().isBefore(LocalDateTime.now());
         return new MasterAdminUserViewDTO(
                 user.getUserId(),
                 user.getUsername(),
                 user.getEmail(),
+                user.isEnabled(),
                 user.isAccountNonLocked(),
                 user.isAccountNonExpired(),
-                user.isEnabled(),
+                isCredentialExpired,
                 user.getSignUpMethod(),
-                user.getRoles(),
+                roles,
                 user.getCreatedAt(),
-                user.getUpdatedAt()
+                user.getCreatedBy()
         );
     }
 

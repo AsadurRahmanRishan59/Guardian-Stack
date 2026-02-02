@@ -30,7 +30,7 @@ export function RoleGuard({
   // Loading placeholder (spinner)
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
+      <div className="flex items-center justify-center min-h-50">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground dark:text-muted-foreground" />
       </div>
     );
