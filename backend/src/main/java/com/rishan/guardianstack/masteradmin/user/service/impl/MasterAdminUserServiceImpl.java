@@ -35,14 +35,7 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
     private final EmailPolicyValidator emailPolicyValidator;
     private final PasswordPolicyValidator passwordPolicyValidator;
 
-    /**
-     * Retrieves a paginated list of users based on the provided search criteria.
-     *
-     * @param searchCriteria the criteria for searching and filtering users, including
-     *                       pagination, sorting, and filter parameters.
-     * @return a {@code PaginatedResponse} containing the list of users in the form of
-     * {@code MasterAdminUserViewDTO}, along with pagination and sorting metadata.
-     */
+
     @Override
     public PaginatedResponse<MasterAdminUserViewDTO> getAllUsers(MasterAdminUserSearchCriteria searchCriteria) {
         Pageable pageable = PageRequest.of(
@@ -120,6 +113,13 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
         return userRepository.save(user).getUserId();
     }
 
+    public MasterAdminUserFilterOptions getFilterOptions() {
+        List<Role> roles = roleRepository.findAll();
+        List<SignUpMethod> signUpMethods = Arrays.stream(SignUpMethod.values()).toList();
+        return MasterAdminUserFilterOptions.create(signUpMethods, roles)
+                ;
+    }
+
     // --- Helper Methods ---
 
     private void validateEmailUniqueness(String email, Long currentUserId, Map<String, String> fieldErrors) {
@@ -172,7 +172,7 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
 
     private Sort createSort(String sortBy, String sortDirection) {
         // Allowed sort fields for admin table
-        Set<String> allowedTableSortFields = Set.of("userId", "username", "createdAt", "updatedAt");
+        Set<String> allowedTableSortFields = Set.of("userId", "username", "createdAt", "createdBy");
 
         String validatedSortBy = allowedTableSortFields.contains(sortBy) ? sortBy : "username";
 
@@ -183,10 +183,5 @@ public class MasterAdminUserServiceImpl implements MasterAdminUserService {
         return Sort.by(direction, validatedSortBy);
     }
 
-    public MasterAdminUserFilterOptions getFilterOptions() {
-        List<Role> roles = roleRepository.findAll();
-        List<SignUpMethod> signUpMethods = Arrays.stream(SignUpMethod.values()).toList();
-        return MasterAdminUserFilterOptions.create(signUpMethods, roles)
-                ;
-    }
+
 }

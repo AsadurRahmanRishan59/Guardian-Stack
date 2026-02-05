@@ -1,13 +1,13 @@
 // features/admin/user/user.react.query.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AdminUserCreateRequestDTO, AdminUserUpdateRequestDTO, AdminUserView, AdminUserViewSearchCriteria } from "./user.types";
+import { AdminUserCreateRequestDTO, AdminUserUpdateRequestDTO, MasterAdminUserView, MasterAdminUserViewSearchCriteria,  } from "./user.types";
 import { createUser, getAdminUserViewFilterOptions, getAllUsers, getUserById, updateUserById } from "./user.service";
 import { toast } from "sonner";
 
 // Hook for paginated users with search/filter
-export function useQueryAdminUserView(searchCriteria?: AdminUserViewSearchCriteria) {
+export function useQueryAdminUserView(searchCriteria?: MasterAdminUserViewSearchCriteria) {
     const { data, isLoading, error, refetch } = useQuery({
-        queryKey: ['adminUserView', 'paginated', { criteria: searchCriteria }],
+        queryKey: ['masterAdminUserView', 'paginated', { criteria: searchCriteria }],
         queryFn: async () => {
             const response = await getAllUsers(searchCriteria);
             return response ?? null;
@@ -18,7 +18,7 @@ export function useQueryAdminUserView(searchCriteria?: AdminUserViewSearchCriter
         retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
     });
     // Explicitly type the users as an array
-    const users: AdminUserView[] = Array.isArray(data?.data) ? data.data : [];
+    const users: MasterAdminUserView[] = Array.isArray(data?.data) ? data.data : [];
     return {
         users,
         pagination: {

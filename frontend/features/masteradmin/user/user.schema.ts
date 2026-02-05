@@ -3,19 +3,22 @@ import { z } from "zod";
 import { SignUpMethod } from "./user.types";
 
 // Filter form schema
-export const adminUserViewFilterSchema = z.object({
+export const masterAdminUserViewFilterSchema = z.object({
   username: z.string().optional(),
+  email: z.email().optional(),
   enabled: z.boolean().optional(),
-  isTwoFactorEnabled: z.boolean().optional(),
+  accountLocked: z.boolean().optional(),
+  accountExpired: z.boolean().optional(),
+  credentialExpired: z.boolean().optional(),
   signUpMethod: z.enum(SignUpMethod).optional(),
-  roleId: z.number().optional(),
+  roleIds: z.array(z.number()).optional(),
   page: z.number().min(0).optional(),
   size: z.number().min(1).max(100).optional(),
-  sortBy: z.string().optional(),
+  sortBy: z.enum(['userId', 'username', 'createdAt', 'createdBy'] as const).optional(),
   sortDirection: z.enum(["asc", "desc"]).optional(),
 });
 
-export type AdminUserViewFilterFormData = z.infer<typeof adminUserViewFilterSchema>;
+export type MasterAdminUserViewFilterFormData = z.infer<typeof masterAdminUserViewFilterSchema>;
 
 // Password validation rules - reusable
 const passwordValidation = z

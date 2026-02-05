@@ -1,14 +1,15 @@
 // hooks/useDataTable.ts
 import { useState, useMemo } from 'react';
 import { ColumnDef, SortingState, VisibilityState, useReactTable, getCoreRowModel } from '@tanstack/react-table';
+import { TableColumnConfig } from '../generateColumns';
 
-export interface TableColumnConfig<T> {
-  key: keyof T;
-  label: string;
-  visible: boolean;
-  sortable: boolean;
-  isDate?: boolean;
-}
+// export interface TableColumnConfig<T> {
+//   key: keyof T;
+//   label: string;
+//   visible: boolean;
+//   sortable: boolean;
+//   isDate?: boolean;
+// }
 
 export interface PaginationInfo {
   currentPage: number;
@@ -89,9 +90,9 @@ export function useDataTable<T, TSearchCriteria extends SearchCriteria = SearchC
     onPaginationChange: (updater) => {
       const newPagination = typeof updater === 'function'
         ? updater({
-            pageIndex: searchCriteria.page ?? 0,
-            pageSize: searchCriteria.size ?? 10,
-          })
+          pageIndex: searchCriteria.page ?? 0,
+          pageSize: searchCriteria.size ?? 10,
+        })
         : updater;
 
       onSearchChange({

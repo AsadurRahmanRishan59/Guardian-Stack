@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserPlus, Users } from "lucide-react";
-import { AdminUserList } from "./AdminUserList";
+import { MasterAdminUserList } from "./MasterAdminUserList";
 
 export function AdminUserViewContainer() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -51,7 +51,7 @@ export function AdminUserViewContainer() {
           <CardTitle>Users List</CardTitle>
         </CardHeader>
         <CardContent>
-          <AdminUserList />
+          <MasterAdminUserList />
         </CardContent>
       </Card>
 

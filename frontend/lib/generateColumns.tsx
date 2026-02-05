@@ -1,5 +1,5 @@
 // lib/generateColumns.tsx
-import { ColumnDef } from "@tanstack/react-table";
+import {  ColumnDef } from "@tanstack/react-table";
 import {
   ArrowDown,
   ArrowUp,
@@ -22,24 +22,24 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export type TableColumnConfig<T> = {
-  key: keyof T;
+  key: keyof T & string;
   label: string;
   visible?: boolean;
   sortable?: boolean;
   isDate?: boolean;
+  isBoolean?: boolean;
+  isNegative?: boolean;
+  trueLabel?: string;
+  falseLabel?: string;
 };
 
-export function generateColumns<T>(
-  config: TableColumnConfig<T>[]
-): ColumnDef<T>[] {
+export function generateColumns<T>(config: TableColumnConfig<T>[]): ColumnDef<T>[] {
   return config.map((col) => {
     const common: ColumnDef<T> = {
       accessorKey: col.key,
       header: ({ column }) => {
         if (!col.sortable) return <span>{col.label}</span>;
-
         const isSorted = column.getIsSorted();
-
         return (
           <div
             className="flex items-center gap-1 cursor-pointer select-none"
@@ -48,40 +48,54 @@ export function generateColumns<T>(
             <span>{col.label}</span>
             {isSorted === "asc" && <ArrowUp className="w-3 h-3" />}
             {isSorted === "desc" && <ArrowDown className="w-3 h-3" />}
-            {isSorted === false && (
-              <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-            )}
+            {!isSorted && <ArrowUpDown className="w-3 h-3 text-muted-foreground" />}
           </div>
         );
       },
       enableSorting: col.sortable,
     };
 
-    // Handle date formatting
-    if (col.isDate) {
+    // 1. Handle Boolean Type (Shadcn Base Colors)
+    if (col.isBoolean) {
       return {
         ...common,
         cell: ({ row }) => {
-          const raw = row.original[col.key] as
-            | string
-            | number
-            | Date
-            | undefined;
-          const date = raw ? new Date(raw) : null;
-          return date && !isNaN(date.getTime())
-            ? date.toLocaleDateString("en-GB")
-            : "";
+          const value = row.getValue(col.key) as boolean;
+          
+          // Logic: Good state = 'default' (Yellow), Bad state = 'destructive' (Red)
+          const isGood = col.isNegative ? !value : value;
+          const variant = isGood ? "default" : "destructive";
+
+          return (
+            <div className="flex  min-w-20">
+              <Badge variant={variant} className="text-xs w-20 ">
+                {value ? (col.trueLabel || "Yes") : (col.falseLabel || "No")}
+              </Badge>
+            </div>
+          );
         },
       };
     }
 
-    // Default cell renderer with text wrapping
+    // 2. Handle Date Type
+    if (col.isDate) {
+      return {
+        ...common,
+        cell: ({ row }) => {
+          const raw = row.original[col.key] as string | number | Date | undefined;
+          const date = raw ? new Date(raw) : null;
+          return date && !isNaN(date.getTime()) ? date.toLocaleDateString("en-GB") : "";
+        },
+      };
+    }
+
+    // 3. Default (Text)
     return {
       ...common,
       cell: ({ row }) => {
         const value = row.original[col.key];
         return (
-          <div className="whitespace-normal wrap-break-word text-sm ">
+          <div className="whitespace-normal wrap-break text-sm">
             {String(value ?? "")}
           </div>
         );
@@ -104,35 +118,11 @@ export function createIndexColumn<T>(): ColumnDef<T> {
   };
 }
 
-export function createIsActiveColumn<T extends { enabled: boolean }>(
-  key: keyof T
-): ColumnDef<T> {
-  return {
-    accessorKey: key,
-    header: () => <div className="min-w-20 flex justify-center">Status</div>,
-    cell: ({ row }) => {
-      const value = row.original[key];
-      return (
-        <div className="min-w-20 flex justify-center">
-          <Badge
-            variant={value ? "default" : "destructive"}
-            className="text-xs w-17.5 text-center"
-          >
-            {value ? "Active" : "Inactive"}
-          </Badge>
-        </div>
-      );
-    },
-    enableSorting: false,
-    enableHiding: true,
-  };
-}
-
 export function createActionsColumn<T>(
   onView: (id: string | number) => void,
   onDelete?: (id: string | number) => void,
   onEdit?: (id: string | number) => void,
-  entityName?: string
+  entityName?: string,
 ): ColumnDef<T> {
   return {
     id: "actions",

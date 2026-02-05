@@ -84,15 +84,14 @@ public class MasterAdminUserMapper {
         user.getRoles().forEach(role ->
                 roles.add(role.getRoleName().name())
         );
-        Boolean isCredentialExpired = user.getCredentialsExpiryDate().isBefore(LocalDateTime.now());
         return new MasterAdminUserViewDTO(
                 user.getUserId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.isEnabled(),
-                user.isAccountNonLocked(),
-                user.isAccountNonExpired(),
-                isCredentialExpired,
+                !user.isAccountNonLocked(),
+                !user.isAccountNonExpired(),
+                !user.isCredentialsNonExpired(),
                 user.getSignUpMethod(),
                 roles,
                 user.getCreatedAt(),

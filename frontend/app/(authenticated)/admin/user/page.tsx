@@ -1,4 +1,4 @@
-import { AdminUserViewContainer } from "@/features/admin/user/components/AdminUserViewContainer";
+import { AdminUserViewContainer } from "@/features/masteradmin/user/components/AdminUserViewContainer";
 
 export default function AdminUserPage() {
   return <AdminUserViewContainer />

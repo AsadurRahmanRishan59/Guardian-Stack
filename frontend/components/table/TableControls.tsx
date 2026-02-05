@@ -5,11 +5,11 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-import { TableColumnConfig } from '@/lib/hooks/useDataTable';
 import { TableSearch } from './TableSearch';
 import { FilterToggle } from './FilterToggle';
 import { ColumnVisibility } from './ColumnVisibility';
 import { Column } from '@tanstack/react-table';
+import { TableColumnConfig } from '@/lib/generateColumns';
 
 interface TableControlsProps<T> {
   searchValue: string;

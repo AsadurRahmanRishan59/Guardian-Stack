@@ -1,8 +1,6 @@
 package com.rishan.guardianstack.masteradmin.user.dto;
 
-import com.rishan.guardianstack.auth.model.Role;
 import com.rishan.guardianstack.auth.model.SignUpMethod;
-
 import java.time.LocalDateTime;
 import java.util.Set;
 

@@ -18,9 +18,10 @@ public record MasterAdminUserSearchCriteria(
         String email,
 
         // Filter
-        Boolean accountLocked,
-        Boolean accountNonExpired,
         Boolean enabled,
+        Boolean accountLocked,
+        Boolean accountExpired,
+        Boolean credentialExpired,
         SignUpMethod signUpMethod,
         List<Integer> roleIds,
 
@@ -30,14 +31,14 @@ public record MasterAdminUserSearchCriteria(
         @Min(value = 1, message = "Page size must be at least 1") Integer size,
 
         // Sorting
-        @Pattern(regexp = "^(userId|username|createdAt|updatedAt)$", message = "Sort field must be one of: User ID, User Name, Created Date, Updated Date") String sortBy,
+        @Pattern(regexp = "^(userId|username|createdAt|createdBy)$", message = "Sort field must be one of: User ID, User Name, Created Date, Created By") String sortBy,
 
         @Pattern(regexp = "^(asc|desc)$", message = "Sort direction must be 'asc' or 'desc'") String sortDirection
 ) {
     // ✅ Default values for pagination and sorting
     public static final int DEFAULT_PAGE = 0;
     public static final int DEFAULT_SIZE = 10;
-    public static final String DEFAULT_SORT_BY = "agentName";
+    public static final String DEFAULT_SORT_BY = "username";
     public static final String DEFAULT_SORT_DIRECTION = "asc";
 
     // ✅ Default initializer logic

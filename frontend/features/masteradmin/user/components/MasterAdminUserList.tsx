@@ -7,27 +7,28 @@ import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // Import reusable components
-import { useDataTable, TableColumnConfig } from "@/lib/hooks/useDataTable";
+import { useDataTable } from "@/lib/hooks/useDataTable";
 import { TableControls } from "@/components/table/TableControls";
 import { DataTable } from "@/components/table/DataTable";
 import {
   createActionsColumn,
   createIndexColumn,
-  createIsActiveColumn,
   generateColumns,
+  TableColumnConfig,
 } from "@/lib/generateColumns";
 
 import {
-  AdminUserView,
-  AdminUserViewFilterOptions,
-  AdminUserViewSearchCriteria,
+  MasterAdminUserView,
+  MasterAdminUserViewFilterOptions,
+  MasterAdminUserViewSearchCriteria,
+  SignUpMethod,
 } from "../user.types";
 import {
   useQueryAdminUserView,
   useQueryAdminUserViewFilterOptions,
 } from "../user.react.query";
-import { AdminUserViewFilterFormData } from "../user.schema";
-import { AdminUserViewFilterForm } from "./AdminUserViewFilterForm";
+import { MasterAdminUserViewFilterFormData } from "../user.schema";
+import { MasterAdminUserViewFilterForm } from "./MasterAdminUserViewFilterForm";
 import AdminUserModal from "./AdminUserModal";
 import {
   Dialog,
@@ -38,46 +39,87 @@ import {
 } from "@/components/ui/dialog";
 import { CreateUserForm } from "./CreateUserForm";
 
-interface AdminUserListRow {
+interface MasterAdminUserViewListRow {
   userId: number;
   username: string;
   email: string;
-  signUpMethod: string;
-  isTwoFactorEnabled: boolean;
-  roles: string;
   enabled: boolean;
-  createdDate: string;
+  accountLocked: boolean;
+  accountExpired: boolean;
+  credentialExpired: boolean;
+  signUpMethod: SignUpMethod;
+  roles: string;
+  createdAt: string;
+  createdBy: string;
 }
 
-const COLUMN_CONFIGS: TableColumnConfig<AdminUserListRow>[] = [
+const COLUMN_CONFIGS: TableColumnConfig<MasterAdminUserViewListRow>[] = [
   { key: "userId", label: "ID", visible: true, sortable: true },
   { key: "username", label: "Name", visible: true, sortable: true },
   { key: "email", label: "Email", visible: true, sortable: false },
   {
-    key: "signUpMethod",
-    label: "Sign Up Method",
+    key: "enabled",
+    label: "Status",
+    visible: true,
+    sortable: false,
+    isBoolean: true,
+    trueLabel: "Active",
+    falseLabel: "Inactive",
+    isNegative: false, // true = Yellow/Primary
+  },
+  {
+    key: "accountLocked",
+    label: "Security",
     visible: false,
     sortable: false,
+    isBoolean: true,
+    trueLabel: "Locked",
+    falseLabel: "Unlocked",
+    isNegative: true, // true = Red/Destructive
   },
-  { key: "isTwoFactorEnabled", label: "2FA", visible: false, sortable: false },
-  { key: "roles", label: "Roles", visible: true, sortable: false },
-  // { key: "enabled", label: "Active", visible: true, sortable: false },
   {
-    key: "createdDate",
-    label: "Created Date",
+    key: "accountExpired",
+    label: "Account",
+    visible: false,
+    isBoolean: true,
+    isNegative: true,
+    trueLabel: "Expired",
+    falseLabel: "Valid",
+  },
+  {
+    key: "credentialExpired",
+    label: "Credentials",
+    visible: false,
+    isBoolean: true,
+    isNegative: true,
+    trueLabel: "Expired",
+    falseLabel: "Valid",
+  },
+  { key: "roles", label: "Roles", visible: true, sortable: false },
+  { key: "signUpMethod", label: "Sign Up Method", visible: true, sortable: false },
+  {
+    key: "createdAt",
+    label: "Created At",
     visible: false,
     sortable: true,
     isDate: true,
   },
+  {
+    key: "createdBy",
+    label: "Created By",
+    visible: false,
+    sortable: true,
+    isDate: false,
+  },
 ];
-export const AdminUserList = () => {
+export const MasterAdminUserList = () => {
   // State
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<number | null>(null);
   const [searchCriteria, setSearchCriteria] =
-    useState<AdminUserViewFilterFormData>({
+    useState<MasterAdminUserViewFilterFormData>({
       page: 0,
       size: 10,
       sortBy: "username",
@@ -104,16 +146,21 @@ export const AdminUserList = () => {
   } = useQueryAdminUserView(searchCriteria);
 
   // In your component where you're preparing the data for the table
-  const tableRows: AdminUserListRow[] = users.map((user: AdminUserView) => ({
-    userId: user.userId,
-    username: user.username,
-    email: user.email,
-    signUpMethod: user.signUpMethod,
-    isTwoFactorEnabled: user.isTwoFactorEnabled,
-    roles: user.roles.map((role) => role.roleName).join(", "), // Join role names
-    enabled: user.enabled,
-    createdDate: user.createdDate,
-  }));
+  const tableRows: MasterAdminUserViewListRow[] = users.map(
+    (user: MasterAdminUserView) => ({
+      userId: user.userId,
+      username: user.username,
+      email: user.email,
+      enabled: user.enabled,
+      accountLocked: user.accountLocked,
+      accountExpired: user.accountExpired,
+      credentialExpired: user.credentialExpired,
+      signUpMethod: user.signUpMethod,
+      roles: user.roles.map((role) => role).join(", "), // Join
+      createdAt: user.createdAt,
+      createdBy: user.createdBy,
+    }),
+  );
 
   // Handlers
   const handleViewUser = useCallback((id: string | number) => {
@@ -135,7 +182,7 @@ export const AdminUserList = () => {
         }
       }
     },
-    [users]
+    [users],
   );
 
   const handleEditSuccess = () => {
@@ -144,7 +191,7 @@ export const AdminUserList = () => {
     userListRefetch();
   };
 
-  const handleFilterSubmit = (criteria: AdminUserViewFilterFormData) => {
+  const handleFilterSubmit = (criteria: MasterAdminUserViewFilterFormData) => {
     setSearchCriteria(criteria);
     setShowFilter(false);
   };
@@ -154,7 +201,7 @@ export const AdminUserList = () => {
     filterRefetch();
   };
 
-  const handleSearchChange = (criteria: AdminUserViewFilterFormData) => {
+  const handleSearchChange = (criteria: MasterAdminUserViewFilterFormData) => {
     setSearchCriteria(criteria);
   };
 
@@ -168,44 +215,45 @@ export const AdminUserList = () => {
 
   const activeFiltersCount = useMemo(() => {
     return (
-      Object.keys(searchCriteria) as (keyof AdminUserViewSearchCriteria)[]
+      Object.keys(searchCriteria) as (keyof MasterAdminUserViewSearchCriteria)[]
     ).filter(
       (key) =>
         key !== "page" &&
         key !== "size" &&
         key !== "sortBy" &&
         key !== "sortDirection" &&
-        searchCriteria[key] !== undefined
+        searchCriteria[key] !== undefined,
     ).length;
   }, [searchCriteria]);
 
   // Columns
-  const columns: ColumnDef<AdminUserListRow>[] = useMemo(
+  const columns: ColumnDef<MasterAdminUserViewListRow>[] = useMemo(
     () => [
-      createIndexColumn<AdminUserListRow>(),
-      ...generateColumns<AdminUserListRow>(COLUMN_CONFIGS),
-      createIsActiveColumn<AdminUserListRow>("enabled"),
-      createActionsColumn<AdminUserListRow>(
+      createIndexColumn<MasterAdminUserViewListRow>(),
+      ...generateColumns<MasterAdminUserViewListRow>(COLUMN_CONFIGS),
+      createActionsColumn<MasterAdminUserViewListRow>(
         handleViewUser,
         undefined,
         handleEditUser,
-        "User"
+        "User",
       ),
     ],
-    [handleViewUser, handleEditUser]
+    [handleViewUser, handleEditUser],
   );
 
   // Use the generic table hook
   const { table, toggleableColumns, visibleCount, totalCount, columnActions } =
-    useDataTable<AdminUserListRow, AdminUserViewSearchCriteria>({
-      data: tableRows as AdminUserListRow[],
-      columns,
-      columnConfigs: COLUMN_CONFIGS,
-      pagination,
-      searchCriteria,
-      onSearchChange: handleSearchChange,
-      getRowId: (row) => String(row.userId),
-    });
+    useDataTable<MasterAdminUserViewListRow, MasterAdminUserViewSearchCriteria>(
+      {
+        data: tableRows as MasterAdminUserViewListRow[],
+        columns,
+        columnConfigs: COLUMN_CONFIGS,
+        pagination,
+        searchCriteria,
+        onSearchChange: handleSearchChange,
+        getRowId: (row) => String(row.userId),
+      },
+    );
 
   // Effects
   useEffect(() => {
@@ -244,8 +292,8 @@ export const AdminUserList = () => {
 
     if (filterOptions) {
       return (
-        <AdminUserViewFilterForm
-          filterOptions={filterOptions as AdminUserViewFilterOptions}
+        <MasterAdminUserViewFilterForm
+          filterOptions={filterOptions as MasterAdminUserViewFilterOptions}
           defaultValues={searchCriteria}
           onSubmit={handleFilterSubmit}
           currentSearch={searchDebounce}
@@ -284,7 +332,7 @@ export const AdminUserList = () => {
       <DataTable
         table={table}
         columns={columns}
-        data={tableRows as AdminUserListRow[]}
+        data={tableRows as MasterAdminUserViewListRow[]}
         pagination={pagination}
         isLoading={userListLoading}
         error={userListError}

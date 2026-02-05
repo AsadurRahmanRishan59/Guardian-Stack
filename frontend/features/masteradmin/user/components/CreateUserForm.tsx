@@ -96,7 +96,6 @@ export function CreateUserForm({ onSuccess, userId }: CreateUserFormProps) {
         accountNonExpired: true,
         accountNonLocked: true,
         credentialsNonExpired: true,
-        isTwoFactorEnabled: editData.isTwoFactorEnabled,
         signUpMethod: editData.signUpMethod || SignUpMethod.ADMIN_CREATED,
         roleIds: editData.roles.map((r) => r.roleId),
         credentialsExpiryDate: "",

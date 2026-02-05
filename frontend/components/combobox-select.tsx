@@ -14,11 +14,13 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import { ChevronsUpDown, Check, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronsUpDown, Check, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
-interface ComboboxSelectProps<T extends object> {
+// Single select props
+interface ComboboxSelectSingleProps<T extends object> {
   items: T[];
   value?: number;
   onChange: (value: number | undefined) => void;
@@ -28,40 +30,148 @@ interface ComboboxSelectProps<T extends object> {
   loading?: boolean;
   error?: string;
   disabled?: boolean;
+  multiple?: false;
   // Generic render functions
   renderItem?: (item: T) => React.ReactNode;
   renderSelected?: (item: T) => React.ReactNode;
 }
 
-export function ComboboxSelect<T extends object>({
-  items,
-  value,
-  onChange,
-  placeholder = "Select...",
-  displayField,
-  valueField,
-  loading,
-  error,
-  disabled = false,
-  renderItem,
-  renderSelected,
-}: ComboboxSelectProps<T>) {
+// Multi select props
+interface ComboboxSelectMultipleProps<T extends object> {
+  items: T[];
+  value?: number[];
+  onChange: (value: number[] | undefined) => void;
+  placeholder?: string;
+  displayField: keyof T;
+  valueField: keyof T;
+  loading?: boolean;
+  error?: string;
+  disabled?: boolean;
+  multiple: true;
+  // Generic render functions
+  renderItem?: (item: T) => React.ReactNode;
+  renderSelected?: (item: T) => React.ReactNode;
+}
+
+type ComboboxSelectProps<T extends object> =
+  | ComboboxSelectSingleProps<T>
+  | ComboboxSelectMultipleProps<T>;
+
+export function ComboboxSelect<T extends object>(
+  props: ComboboxSelectProps<T>
+) {
+  const {
+    items,
+    value,
+    onChange,
+    placeholder = "Select...",
+    displayField,
+    valueField,
+    loading,
+    error,
+    disabled = false,
+    multiple = false,
+    renderItem,
+    renderSelected,
+  } = props;
+
   const [open, setOpen] = useState(false);
 
-  const selectedItem = items.find((item) => item[valueField] === value);
+  // Normalize value to array for easier handling
+  const selectedValues = multiple
+    ? Array.isArray(value)
+      ? value
+      : []
+    : Array.isArray(value)
+    ? []
+    : value !== undefined
+    ? [value]
+    : [];
+
+  const selectedItems = items.filter((item) =>
+    selectedValues.includes(item[valueField] as number)
+  );
 
   const getItemDisplay = (item: T) => {
     return renderItem ? renderItem(item) : String(item[displayField]);
   };
 
   const getSelectedDisplay = () => {
-    if (!selectedItem) {
+    if (selectedItems.length === 0) {
       return <span className="text-muted-foreground">{placeholder}</span>;
     }
 
+    if (multiple) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {selectedItems.map((item) => (
+            <Badge
+              key={String(item[valueField])}
+              variant="secondary"
+              className="mr-1"
+            >
+              {renderSelected
+                ? renderSelected(item)
+                : String(item[displayField])}
+              <span
+                role="button"
+                tabIndex={0}
+                className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer inline-flex"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleToggle(item[valueField] as number);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleToggle(item[valueField] as number);
+                }}
+              >
+                <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+              </span>
+            </Badge>
+          ))}
+        </div>
+      );
+    }
+
+    const selectedItem = selectedItems[0];
     return renderSelected
       ? renderSelected(selectedItem)
       : String(selectedItem[displayField]);
+  };
+
+  const handleToggle = (itemValue: number) => {
+    if (disabled) return;
+
+    if (multiple) {
+      const currentValues = Array.isArray(value) ? value : [];
+      const newValues = currentValues.includes(itemValue)
+        ? currentValues.filter((v) => v !== itemValue)
+        : [...currentValues, itemValue];
+
+      // Type assertion needed due to discriminated union
+      (onChange as (value: number[] | undefined) => void)(
+        newValues.length > 0 ? newValues : undefined
+      );
+    } else {
+      // Type assertion needed due to discriminated union
+      (onChange as (value: number | undefined) => void)(
+        value === itemValue ? undefined : itemValue
+      );
+      setOpen(false);
+    }
+  };
+
+  const isSelected = (itemValue: number) => {
+    return selectedValues.includes(itemValue);
   };
 
   return (
@@ -84,11 +194,13 @@ export function ComboboxSelect<T extends object>({
               aria-expanded={open}
               disabled={disabled}
               className={cn(
-                "w-full justify-between",
+                "w-full justify-between min-h-8 h-auto",
                 disabled && "cursor-not-allowed opacity-50"
               )}
             >
-              {getSelectedDisplay()}
+              <div className="flex-1 text-left overflow-hidden">
+                {getSelectedDisplay()}
+              </div>
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -98,15 +210,15 @@ export function ComboboxSelect<T extends object>({
           >
             <Command>
               <CommandInput
-                placeholder={`${placeholder.toLowerCase()}...`}
+                placeholder={`Search ${placeholder.toLowerCase()}...`}
                 disabled={disabled}
               />
               <CommandList>
                 <CommandEmpty>No item found.</CommandEmpty>
                 <CommandGroup>
                   {items.map((item) => {
-                    const itemValue = item[valueField];
-                    const isSelected = itemValue === value;
+                    const itemValue = item[valueField] as number;
+                    const selected = isSelected(itemValue);
                     // Create a unique value by combining the display field with the unique valueField
                     const uniqueValue = `${String(item[displayField])}-${String(
                       itemValue
@@ -118,19 +230,12 @@ export function ComboboxSelect<T extends object>({
                         value={uniqueValue}
                         disabled={disabled}
                         className={cn("cursor-pointer", renderItem && "py-3")}
-                        onSelect={() => {
-                          if (!disabled) {
-                            onChange(
-                              isSelected ? undefined : (itemValue as number)
-                            );
-                            setOpen(false);
-                          }
-                        }}
+                        onSelect={() => handleToggle(itemValue)}
                       >
                         <Check
                           className={cn(
                             "mr-2 h-4 w-4 shrink-0",
-                            isSelected ? "opacity-100" : "opacity-0"
+                            selected ? "opacity-100" : "opacity-0"
                           )}
                         />
                         {getItemDisplay(item)}

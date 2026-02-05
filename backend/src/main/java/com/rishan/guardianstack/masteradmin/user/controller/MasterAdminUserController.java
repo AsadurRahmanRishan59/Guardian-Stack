@@ -25,37 +25,24 @@ public class MasterAdminUserController {
 
     private final MasterAdminUserService masterAdminUserService;
 
-    /**
-     * Retrieves a paginated and sorted list of users based on the provided search criteria.
-     *
-     * @param username          The username to search for (optional).
-     * @param email             The email address to search for (optional).
-     * @param accountLocked  Filter for users with non-locked accounts (optional).
-     * @param accountNonExpired Filter for users with non-expired accounts (optional).
-     * @param enabled           Filter for enabled users (optional).
-     * @param roleIds           List of role IDs to filter users by (optional).
-     * @param page              The page number for pagination, default is 0.
-     * @param size              The size of each page for pagination, default is 10.
-     * @param sortBy            The attribute to sort the results by default is "username".
-     * @param sortDirection     The direction of sorting ("asc" or "desc"), default is "asc".
-     * @return A {@code ResponseEntity} containing a {@code PaginatedResponse} of {@code User} objects.
-     */
+
     @GetMapping
     public ResponseEntity<PaginatedResponse<MasterAdminUserViewDTO>> getAllUsers(
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String email,
-            @RequestParam(required = false) Boolean accountLocked,
-            @RequestParam(required = false) Boolean accountNonExpired,
             @RequestParam(required = false) Boolean enabled,
-            @RequestParam(required = false) List<Integer> roleIds,
+            @RequestParam(required = false) Boolean accountLocked,
+            @RequestParam(required = false) Boolean accountExpired,
+            @RequestParam(required = false) Boolean credentialExpired,
             @RequestParam(required = false) SignUpMethod signUpMethod,
+            @RequestParam(required = false) List<Integer> roleIds,
 
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(defaultValue = "username") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDirection) {
         MasterAdminUserSearchCriteria searchCriteria = new MasterAdminUserSearchCriteria(
-                username, email, accountLocked, accountNonExpired, enabled, signUpMethod, roleIds, page, size, sortBy, sortDirection
+                username, email, enabled, accountLocked, accountExpired, credentialExpired, signUpMethod, roleIds, page, size, sortBy, sortDirection
         );
         PaginatedResponse<MasterAdminUserViewDTO> response = masterAdminUserService.getAllUsers(searchCriteria);
         return ResponseEntity.ok(response);

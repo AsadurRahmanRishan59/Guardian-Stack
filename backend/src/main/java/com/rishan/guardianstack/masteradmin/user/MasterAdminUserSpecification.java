@@ -31,31 +31,47 @@ public class MasterAdminUserSpecification {
                         criteria.email().toLowerCase()));
             }
 
-            // 3. Boolean Flags - NULL-SAFE MAPPING
-
-            // Handle Account Locked
-            if (criteria.accountLocked() != null) {
-                predicates.add(cb.equal(root.get("accountLocked"), criteria.accountLocked()));
+            // --- ADDED: SignUpMethod Filtering ---
+            if (criteria.signUpMethod() != null) {
+                predicates.add(cb.equal(root.get("signUpMethod"), criteria.signUpMethod()));
             }
+            // -------------------------------------
 
-            // Handle Enabled
+            // 3. Boolean Flags - NULL-SAFE MAPPING
             if (criteria.enabled() != null) {
                 predicates.add(cb.equal(root.get("enabled"), criteria.enabled()));
             }
 
-            // Handle Account Non-Expired (This was the cause of your crash)
-            if (criteria.accountNonExpired() != null) {
-                if (criteria.accountNonExpired()) {
-                    // If we want NON-EXPIRED: Date must be null OR in the future
+            if (criteria.accountLocked() != null) {
+                predicates.add(cb.equal(root.get("accountLocked"), criteria.accountLocked()));
+            }
+
+            // Handle Account Expiration
+            if (criteria.accountExpired() != null) {
+                if (criteria.accountExpired()) { // User wants EXPIRED accounts
+                    predicates.add(cb.and(
+                            cb.isNotNull(root.get("accountExpiryDate")),
+                            cb.lessThanOrEqualTo(root.get("accountExpiryDate"), LocalDateTime.now())
+                    ));
+                } else { // User wants NON-EXPIRED accounts
                     predicates.add(cb.or(
                             cb.isNull(root.get("accountExpiryDate")),
                             cb.greaterThan(root.get("accountExpiryDate"), LocalDateTime.now())
                     ));
-                } else {
-                    // If we want EXPIRED: Date must be NOT NULL AND in the past
+                }
+            }
+
+            // Handle Credential Expiration
+            if (criteria.credentialExpired() != null) {
+                if (criteria.credentialExpired()) {
                     predicates.add(cb.and(
-                            cb.isNotNull(root.get("accountExpiryDate")),
-                            cb.lessThanOrEqualTo(root.get("accountExpiryDate"), java.time.LocalDateTime.now())
+                            cb.isNotNull(root.get("credentialsExpiryDate")),
+                            cb.lessThanOrEqualTo(root.get("credentialsExpiryDate"), LocalDateTime.now())
+                    ));
+                } else {
+                    predicates.add(cb.or(
+                            cb.isNull(root.get("credentialsExpiryDate")),
+                            cb.greaterThan(root.get("credentialsExpiryDate"), LocalDateTime.now())
                     ));
                 }
             }
