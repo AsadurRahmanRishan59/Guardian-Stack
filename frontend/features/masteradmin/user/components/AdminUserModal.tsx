@@ -54,7 +54,12 @@ export default function AdminUserModal({
     error,
   } = useGetUserById(open && userId ? userId : undefined);
 
-  const formatDateTime = (dateString?: string) => {
+  // Helper functions for null-safe checks
+  const isTrue = (value?: boolean | null): boolean => value === true;
+  const isFalse = (value?: boolean | null): boolean => value === false;
+  const isNotTrue = (value?: boolean | null): boolean => value !== true;
+
+  const formatDateTime = (dateString?: string | null) => {
     if (!dateString) return "—";
     return new Date(dateString).toLocaleString("en-GB", {
       day: "2-digit",
@@ -65,7 +70,7 @@ export default function AdminUserModal({
     });
   };
 
-  const formatRelativeTime = (dateString?: string) => {
+  const formatRelativeTime = (dateString?: string | null) => {
     if (!dateString) return null;
     const date = new Date(dateString);
     const now = new Date();
@@ -80,7 +85,7 @@ export default function AdminUserModal({
     return "Just now";
   };
 
-  const isExpired = (expireDate?: string) => {
+  const isExpired = (expireDate?: string | null) => {
     if (!expireDate) return false;
     return new Date(expireDate) < new Date();
   };
@@ -114,10 +119,10 @@ export default function AdminUserModal({
     if (!userData) return 0;
     let score = 0;
     if (userData.enabled) score += 20;
-    if (!userData.accountLocked) score += 20;
-    if (!userData.accountExpired) score += 20;
-    if (!userData.credentialsExpired) score += 20;
-    if (userData.failedLoginAttempts === 0) score += 20;
+    if (isNotTrue(userData.accountLocked)) score += 20;
+    if (isNotTrue(userData.accountExpired)) score += 20;
+    if (isNotTrue(userData.credentialsExpired)) score += 20;
+    if ((userData.failedLoginAttempts ?? 0) === 0) score += 20;
     return score;
   };
 
@@ -171,13 +176,13 @@ export default function AdminUserModal({
                       )}
                       {userData.enabled ? "Active" : "Disabled"}
                     </Badge>
-                    {userData.accountLocked && (
+                    {isTrue(userData.accountLocked) && (
                       <Badge variant="destructive" className="shadow-sm">
                         <Lock className="w-3 h-3 mr-1" />
                         Locked
                       </Badge>
                     )}
-                    {userData.mustChangePassword && (
+                    {isTrue(userData.mustChangePassword) && (
                       <Badge variant="outline" className="shadow-sm border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400">
                         <AlertTriangle className="w-3 h-3 mr-1" />
                         Password Reset Required
@@ -254,22 +259,22 @@ export default function AdminUserModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <SecurityMetric
                     label="Account"
-                    isSecure={userData.enabled && !userData.accountExpired}
+                    isSecure={userData.enabled && isNotTrue(userData.accountExpired)}
                     icon={<User className="w-4 h-4" />}
                   />
                   <SecurityMetric
                     label="Lock Status"
-                    isSecure={!userData.accountLocked}
+                    isSecure={isNotTrue(userData.accountLocked)}
                     icon={<Lock className="w-4 h-4" />}
                   />
                   <SecurityMetric
                     label="Credentials"
-                    isSecure={!userData.credentialsExpired}
+                    isSecure={isNotTrue(userData.credentialsExpired)}
                     icon={<Key className="w-4 h-4" />}
                   />
                   <SecurityMetric
                     label="Login Attempts"
-                    isSecure={userData.failedLoginAttempts === 0}
+                    isSecure={(userData.failedLoginAttempts ?? 0) === 0}
                     icon={<AlertCircle className="w-4 h-4" />}
                   />
                 </div>
@@ -292,19 +297,19 @@ export default function AdminUserModal({
                       />
                       <StatusRow
                         label="Account Lock"
-                        isActive={!userData.accountLocked}
+                        isActive={isNotTrue(userData.accountLocked)}
                         activeText="Unlocked"
                         inactiveText="Locked"
                       />
                       <StatusRow
                         label="Account Expiry"
-                        isActive={!userData.accountExpired}
+                        isActive={isNotTrue(userData.accountExpired)}
                         activeText="Valid"
                         inactiveText="Expired"
                       />
                       <StatusRow
                         label="Credentials"
-                        isActive={!userData.credentialsExpired}
+                        isActive={isNotTrue(userData.credentialsExpired)}
                         activeText="Valid"
                         inactiveText="Expired"
                       />
@@ -321,8 +326,8 @@ export default function AdminUserModal({
                         icon={<AlertCircle className="h-4 w-4 text-red-500" />}
                         label="Failed Login Attempts"
                         value={
-                          <span className={userData.failedLoginAttempts > 0 ? "font-semibold text-red-600 dark:text-red-400" : ""}>
-                            {userData.failedLoginAttempts}
+                          <span className={(userData.failedLoginAttempts ?? 0) > 0 ? "font-semibold text-red-600 dark:text-red-400" : ""}>
+                            {userData.failedLoginAttempts ?? 0}
                           </span>
                         }
                       />
@@ -392,8 +397,8 @@ export default function AdminUserModal({
                         icon={<AlertTriangle className="h-4 w-4 text-yellow-500" />}
                         label="Must Change Password"
                         value={
-                          <Badge variant={userData.mustChangePassword ? "destructive" : "secondary"}>
-                            {userData.mustChangePassword ? "Yes" : "No"}
+                          <Badge variant={isTrue(userData.mustChangePassword) ? "destructive" : "secondary"}>
+                            {isTrue(userData.mustChangePassword) ? "Yes" : "No"}
                           </Badge>
                         }
                       />
@@ -604,10 +609,10 @@ function ExpiryCard({
   isExpired,
 }: {
   label: string;
-  date?: string;
+  date?: string | null;
   isExpired: boolean;
 }) {
-  const formatDateTime = (dateString?: string) => {
+  const formatDateTime = (dateString?: string | null) => {
     if (!dateString) return "Not set";
     return new Date(dateString).toLocaleString("en-GB", {
       day: "2-digit",
@@ -618,7 +623,7 @@ function ExpiryCard({
     });
   };
 
-  const getDaysUntilExpiry = (dateString?: string) => {
+  const getDaysUntilExpiry = (dateString?: string | null) => {
     if (!dateString) return null;
     const date = new Date(dateString);
     const now = new Date();
@@ -628,30 +633,39 @@ function ExpiryCard({
   };
 
   const days = getDaysUntilExpiry(date);
+  const hasDate = !!date;
 
   return (
     <div
       className={`p-3 rounded-lg border ${
-        isExpired
+        !hasDate
+          ? "bg-muted/50 border-muted"
+          : isExpired
           ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
           : "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
       }`}
     >
       <div className="flex items-start justify-between mb-1">
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        {isExpired ? (
-          <Badge variant="destructive" className="text-xs px-2 py-0">
-            Expired
-          </Badge>
-        ) : days !== null && days < 30 ? (
-          <Badge variant="outline" className="text-xs px-2 py-0 border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400">
-            {days} days left
-          </Badge>
-        ) : null}
+        {hasDate && (
+          <>
+            {isExpired ? (
+              <Badge variant="destructive" className="text-xs px-2 py-0">
+                Expired
+              </Badge>
+            ) : days !== null && days < 30 ? (
+              <Badge variant="outline" className="text-xs px-2 py-0 border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400">
+                {days} days left
+              </Badge>
+            ) : null}
+          </>
+        )}
       </div>
       <div
         className={`text-sm font-semibold ${
-          isExpired
+          !hasDate
+            ? "text-muted-foreground"
+            : isExpired
             ? "text-red-700 dark:text-red-400"
             : "text-blue-700 dark:text-blue-400"
         }`}

@@ -55,9 +55,9 @@ public class MasterAdminUserMapper {
 
                 // STATUS
                 user.isEnabled(),
-                user.isAccountNonLocked(),
-                user.isAccountNonExpired(),
-                user.isCredentialsNonExpired(),
+                !user.isAccountNonLocked(),
+                !user.isAccountNonExpired(),
+                !user.isCredentialsNonExpired(),
 
                 // SECURITY FORENSICS
                 user.getFailedLoginAttempts(),

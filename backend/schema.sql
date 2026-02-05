@@ -405,7 +405,7 @@ INSERT INTO public.gs_users (username,
                              created_by)
 VALUES ('Rishan Master Admin',
         'admin@guardianstack.com',
-        '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYzpQRstTCS', -- Admin@123
+        '$2a$12$OZKeDs.9l9Q0ldUmRfnhteUWaveBGuZnU6dr1qx04hCXQ4B05shMy', -- Admin@123
         TRUE,
         'MANUAL',
         'SYSTEM')

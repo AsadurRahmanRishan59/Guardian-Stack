@@ -49,6 +49,7 @@ export interface MasterAdminUserViewFilterOptions {
 }
 
 // Admin User Response DTO interface
+// Updated Admin User Response DTO interface with proper null handling
 export interface MasterAdminUserDTO {
   userId: number;
   username: string;
@@ -56,30 +57,48 @@ export interface MasterAdminUserDTO {
   roles: Role[]; // nested Role objects
   signUpMethod?: SignUpMethod | null;
 
-  // Spring Security flags
+  // Spring Security flags - these can be null when not explicitly set
   enabled: boolean;
-  accountLocked: boolean;
-  accountExpired: boolean;
-  credentialsExpired: boolean;
+  accountLocked?: boolean | null;
+  accountExpired?: boolean | null;
+  credentialsExpired?: boolean | null;
 
   // --- SECURITY & LOGIN FORENSICS ---
-  failedLoginAttempts: number;
-  lastFailedLogin: string;
-  lastSuccessfulLogin: string;
-  lockedUntil: string;
+  failedLoginAttempts?: number | null;
+  lastFailedLogin?: string | null;
+  lastSuccessfulLogin?: string | null;
+  lockedUntil?: string | null;
 
   // --- COMPLIANCE & LIFECYCLE MANAGEMENT ---
-  accountExpiryDate: string;
-  credentialsExpiryDate: string;
-  lastPasswordChange: string;
-  mustChangePassword: boolean;
+  accountExpiryDate?: string | null;
+  credentialsExpiryDate?: string | null;
+  lastPasswordChange?: string | null;
+  mustChangePassword?: boolean | null;
 
   // --- SYSTEM AUDIT TRAIL ---
   createdAt: string;
   updatedAt: string;
-  createdBy: string;
-  updatedBy: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
 }
+
+// Helper function to safely check boolean flags
+// Treats null/undefined as false (no issue)
+export const isFlagActive = (flag?: boolean | null): boolean => {
+  return flag === true;
+};
+
+// Helper function to check if account is locked
+// Returns true only if explicitly locked (true), not when null/undefined
+export const isAccountLocked = (locked?: boolean | null): boolean => {
+  return locked === true;
+};
+
+// Helper function to check if something is expired
+// Returns true only if explicitly expired (true), not when null/undefined
+export const isExpired = (expired?: boolean | null): boolean => {
+  return expired === true;
+};
 
 export interface AdminUserCreateRequestDTO {
   username: string;

@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
         "masteradmin"
-    ]
+    ],
+    "java.compile.nullAnalysis.mode": "automatic"
 }
