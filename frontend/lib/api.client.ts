@@ -100,9 +100,27 @@ export async function apiFetch<T = unknown>(
                     body: body ? JSON.stringify(body) : undefined,
                 });
             } else {
-                // Refresh failed (Session totally dead)
-                console.warn('❌ Refresh failed, session expired.');
-                // Optional: window.location.href = '/login?expired=true';
+                // 1. Try to parse the error body to see WHY it failed
+                let errorType = 'session_expired'; // Default fallback
+
+                try {
+                    const errorData = await refreshResponse.json();
+                    // If your Spring Boot GlobalExceptionHandler sends the message, use it
+                    if (errorData.message) {
+                        errorType = errorData.message.toLowerCase();
+                        // This will be 'session_displaced', 'session_reused', etc.
+                    }
+                } catch (_) { // Changed 'e' to '_'
+                    console.warn('Could not parse refresh error body, using default.');
+                }
+                console.warn(`❌ Refresh failed. Reason: ${errorType}`);
+
+                if (typeof window !== 'undefined') {
+                    // 2. Pass the specific enum-like string to the URL
+                    window.location.href = `/signin?error=${errorType}`;
+                }
+
+                throw new Error('Unauthorized');
             }
         }
 

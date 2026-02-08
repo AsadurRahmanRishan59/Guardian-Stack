@@ -295,6 +295,12 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
             DevicePolicy policy = getDevicePolicyForUser(token.getUser());
 
+            // Logic: If they are single-device (Master Admin), they were likely displaced by a new login.
+            // If they are multi-device, a revoked token usually means a manual logout or a reuse attack.
+            String errorMsg = !policy.multiDeviceEnabled()
+                    ? "SESSION_DISPLACED"
+                    : "SESSION_REUSED";
+
             if (policy.multiDeviceEnabled()) {
                 refreshTokenRepository.deleteByUserAndDeviceFingerprint(
                         token.getUser(),
@@ -304,7 +310,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 refreshTokenRepository.deleteByUser(token.getUser());
             }
 
-            throw new TokenReusedException("This token was already used.");
+            throw new TokenReusedException(errorMsg);
         }
 
         if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
@@ -317,7 +323,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                     "Token expired for device: " + token.getDeviceName()
             );
 
-            throw new TokenExpiredException("Token has expired. Please sign in again.");
+            throw new TokenExpiredException("SESSION_EXPIRED");
         }
 
         return token;
