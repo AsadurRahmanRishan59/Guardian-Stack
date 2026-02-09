@@ -35,6 +35,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -293,9 +294,16 @@ public class AuthServiceImpl implements AuthService {
             throw new UserDetailsNotFoundException("User details not found");
         }
 
+//        if (user != null) {
+//            user.resetFailedAttempts();
+//            userRepository.save(user);
+//        }
+
         if (user != null) {
-            user.resetFailedAttempts();
-            userRepository.save(user);
+            userRepository.resetFailedAttemptsWithoutAudit(
+                    user.getUserId(),
+                    LocalDateTime.now()
+            );
         }
 
         String jwtToken = Optional.ofNullable(jwtUtils.generateJwtTokenFromEmail(userDetails))
@@ -508,9 +516,17 @@ public class AuthServiceImpl implements AuthService {
 
         verificationService.verifyPasswordResetToken(request.email(), request.otp());
 
+//        user.setPassword(passwordEncoder.encode(request.newPassword()));
+//        user.resetFailedAttempts();
+//        userRepository.save(user);
+
         user.setPassword(passwordEncoder.encode(request.newPassword()));
-        user.resetFailedAttempts();
-        userRepository.save(user);
+        userRepository.save(user);  // Only saves password (core data)
+
+        userRepository.resetFailedAttemptsWithoutAudit(
+                user.getUserId(),
+                LocalDateTime.now()
+        );
 
         verificationTokenRepository.deleteByUserAndTokenType(user, TokenType.PASSWORD_RESET.name());
         refreshTokenService.revokeAllUserTokens(user);
@@ -533,8 +549,13 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        user.resetFailedAttempts();
-        userRepository.save(user);
+//        user.resetFailedAttempts();
+//        userRepository.save(user);
+
+        userRepository.resetFailedAttemptsWithoutAudit(
+                user.getUserId(),
+                LocalDateTime.now()
+        );
 
         // BUFFERED - Only logged if unlock succeeds
         elkAuditService.logSuccess(
@@ -549,23 +570,55 @@ public class AuthServiceImpl implements AuthService {
      * Reason: If incrementing fails, we still want to know about the failed login attempt.
      * The ACCOUNT_LOCKED event is buffered because it only matters if the lock succeeds.
      */
+    /**
+     * ✅ CORRECTED VERSION - handleFailedLogin() method
+     *
+     * CRITICAL FIXES:
+     * 1. Removed userRepository.save(user) - it was triggering audit!
+     * 2. Use calculated unlockTime instead of stale user.getLockedUntil()
+     */
     private void handleFailedLogin(User user, HttpServletRequest request) {
-        user.incrementFailedAttempts();
+        LocalDateTime now = LocalDateTime.now();
 
-        if (user.getFailedLoginAttempts() >= maxLoginAttempts) {
-            user.lockAccount(lockoutDurationMinutes);
+        // Increment failed attempts using native query (no audit trigger)
+        userRepository.incrementFailedAttemptsWithoutAudit(
+                user.getUserId(),
+                now
+        );
+
+        // Calculate current attempts (user entity in memory is stale, so add 1)
+        int currentAttempts = user.getFailedLoginAttempts() + 1;
+
+        if (currentAttempts >= maxLoginAttempts) {
+            LocalDateTime unlockTime = now.plusMinutes(lockoutDurationMinutes);
+
+            // Lock account using native query (no audit trigger)
+            userRepository.lockAccountWithoutAudit(
+                    user.getUserId(),
+                    unlockTime
+            );
 
             // BUFFERED - Only log lock if the transaction commits
-            // (If lock fails to save, we don't want to falsely claim account was locked)
             elkAuditService.logSuccess(
                     AuditEventType.ACCOUNT_LOCKED,
                     user,
                     String.format("Locked after %d failed attempts, unlock at: %s",
-                            maxLoginAttempts, user.getLockedUntil())
+                            maxLoginAttempts, unlockTime)  // ✅ Use calculated time, not stale entity
             );
         }
-        userRepository.save(user);
+        // ✅ REMOVED: userRepository.save(user)
+        // No need to save - native queries already persisted changes directly to DB
     }
+
+//    private void handleFailedLogin(User user, HttpServletRequest request) {
+//        user.incrementFailedAttempts();
+//
+//        if (user.getFailedLoginAttempts() >= maxLoginAttempts) {
+//            user.lockAccount(lockoutDurationMinutes);
+//            // ... logging
+//        }
+//        userRepository.save(user);
+//    }
 
     // ==========================================
     // 5. VALIDATION HELPERS

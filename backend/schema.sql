@@ -589,3 +589,8 @@ SELECT '✅ GuardianStack Insurance Database Setup Complete!' as status,
 -- 4. Start Spring Boot application
 -- 5. Test login with: admin@guardianstack.com / Admin@123
 
+CREATE TABLE public.gs_revinfo
+(
+    rev      INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    revtstmp BIGINT NOT NULL -- Unix timestamp of the transaction
+);
