@@ -3,6 +3,9 @@ package com.rishan.guardianstack.auth.model;
 import com.rishan.guardianstack.core.domain.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
+import org.hibernate.envers.RelationTargetAuditMode;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -22,6 +25,7 @@ import java.util.Set;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Audited  // ✅ Enable Envers auditing for this entity
 public class User extends BaseEntity {
 
     @Id
@@ -52,68 +56,79 @@ public class User extends BaseEntity {
             inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     @Builder.Default
+    @Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)
+    // ✅ Audit the relationship AND the target Role entity
+    // This tracks when roles are added/removed AND when role details change
     private Set<Role> roles = new HashSet<>();
 
     // ==========================================
     // ACCOUNT LOCKOUT FIELDS
     // ==========================================
+    // ⚠️ IMPORTANT: These fields are NOT audited by Envers because:
+    // 1. They change very frequently (every login attempt)
+    // 2. They don't represent "business data changes"
+    // 3. We already track them via ELK audit logs
+    // 4. We update them via native queries to avoid triggering JPA audit
+    //
+    // If you NEED to audit these for compliance, remove @NotAudited
+    // but be prepared for MASSIVE audit table growth!
+    // ==========================================
 
     @Column(name = "failed_login_attempts", nullable = false)
     @Builder.Default
+    @NotAudited
     private int failedLoginAttempts = 0;
 
     @Column(name = "account_locked", nullable = false)
     @Builder.Default
+    @NotAudited
     private boolean accountLocked = false;
 
     @Column(name = "locked_until")
+    @NotAudited
     private LocalDateTime lockedUntil;
 
     @Column(name = "last_failed_login")
+    @NotAudited
     private LocalDateTime lastFailedLogin;
 
     @Column(name = "last_successful_login")
+    @NotAudited
     private LocalDateTime lastSuccessfulLogin;
 
     // ==========================================
     // ACCOUNT EXPIRY FIELDS (IMPORTANT FOR EMPLOYEES)
     // ==========================================
+    // ✅ THESE ARE AUDITED because they represent important business events:
+    // - Contract start/end dates
+    // - Password policy enforcement
+    // - Compliance requirements
+    // ==========================================
 
     /**
      * Account expiry date
-     * Use cases:
-     * - Employee contracts (6 months, 1 year)
-     * - Temporary access for contractors
-     * - Trial accounts for public users
-     * - Subscription-based access
+     * ✅ AUDITED - Important for compliance and contract tracking
      */
     @Column(name = "account_expiry_date")
     private LocalDateTime accountExpiryDate;
 
     /**
      * Credentials (password) expiry date
-     * Use cases:
-     * - Force password change for new employees
-     * - Temporary admin-generated passwords
-     * - 90-day password rotation policy
-     * - Security compliance requirements
+     * ✅ AUDITED - Important for security compliance
      */
     @Column(name = "credentials_expiry_date")
     private LocalDateTime credentialsExpiryDate;
 
     /**
      * Last password change date
-     * Used for tracking password age and policy enforcement
+     * ✅ AUDITED - Important for security compliance
      */
     @Column(name = "last_password_change")
     private LocalDateTime lastPasswordChange;
 
     /**
      * Flag to force password change on next login
-     * Set to true when:
-     * - Admin creates account with temporary password
-     * - Password reset by admin
-     * - Security policy violation
+     * ✅ AUDITED - Important to track when this was set/unset
      */
     @Column(name = "must_change_password", nullable = false)
     @Builder.Default

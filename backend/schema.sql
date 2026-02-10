@@ -589,8 +589,325 @@ SELECT '✅ GuardianStack Insurance Database Setup Complete!' as status,
 -- 4. Start Spring Boot application
 -- 5. Test login with: admin@guardianstack.com / Admin@123
 
-CREATE TABLE public.gs_revinfo
+-- =========================================================================
+-- HIBERNATE ENVERS AUDIT TABLES FOR gs_users
+-- =========================================================================
+-- These tables track ALL changes to user records with full history
+-- Envers creates two tables: _AUD (audit data) and REVINFO (revision metadata)
+-- =========================================================================
+
+-- =========================================================================
+-- 1. REVISION INFO TABLE (Shared across all audited entities)
+-- =========================================================================
+-- This table stores metadata about each revision (who, when, what type)
+-- One revision can contain changes to multiple entities
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS public.revinfo
 (
-    rev      INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    revtstmp BIGINT NOT NULL -- Unix timestamp of the transaction
+    rev      BIGSERIAL PRIMARY KEY,
+    revtstmp BIGINT NOT NULL,  -- Timestamp in milliseconds (Unix epoch)
+
+    -- Custom fields (optional - add if you want to track who made the change)
+    username VARCHAR(255) NULL,  -- Who made the change
+    ip_address VARCHAR(45) NULL  -- IP address of the user
 );
+
+-- Index for timestamp queries (common use case: "show me changes in last 30 days")
+CREATE INDEX IF NOT EXISTS idx_revinfo_revtstmp ON public.revinfo(revtstmp);
+
+COMMENT ON TABLE public.revinfo IS 'Envers revision metadata - tracks when and by whom changes were made';
+COMMENT ON COLUMN public.revinfo.rev IS 'Unique revision ID - auto-incremented for each transaction';
+COMMENT ON COLUMN public.revinfo.revtstmp IS 'Revision timestamp in milliseconds since Unix epoch';
+COMMENT ON COLUMN public.revinfo.username IS 'Username who made the change (custom field)';
+COMMENT ON COLUMN public.revinfo.ip_address IS 'IP address from where change was made (custom field)';
+
+-- =========================================================================
+-- 2. USER AUDIT TABLE (Stores historical versions of user records)
+-- =========================================================================
+-- This table is a mirror of gs_users with additional audit columns
+-- Every time a user record is created, updated, or deleted, a new row is added here
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS public.gs_users_aud
+(
+    -- =========================================================================
+    -- PRIMARY KEY (Composite: user_id + rev)
+    -- =========================================================================
+    user_id                 BIGINT       NOT NULL,  -- References gs_users.user_id
+    rev                     BIGINT       NOT NULL,  -- References revinfo.rev
+
+    -- =========================================================================
+    -- REVISION TYPE (What happened in this revision?)
+    -- =========================================================================
+    revtype                 SMALLINT     NOT NULL,  -- 0=INSERT, 1=UPDATE, 2=DELETE
+
+    -- =========================================================================
+    -- AUDITED FIELDS (All fields from gs_users that we want to track)
+    -- =========================================================================
+
+    -- Basic User Info
+    username                VARCHAR(255) NULL,
+    email                   VARCHAR(100) NULL,
+    password                VARCHAR(255) NULL,
+
+    -- Basic Flags
+    enabled                 BOOLEAN      NULL,
+    sign_up_method          VARCHAR(20)  NULL,
+
+    -- =========================================================================
+    -- ACCOUNT LOCKOUT FIELDS (Track security events)
+    -- =========================================================================
+    failed_login_attempts   INTEGER      NULL,
+    account_locked          BOOLEAN      NULL,
+    locked_until            TIMESTAMP    NULL,
+    last_failed_login       TIMESTAMP    NULL,
+    last_successful_login   TIMESTAMP    NULL,
+
+    -- =========================================================================
+    -- EXPIRY FIELDS (Track changes to expiry dates)
+    -- =========================================================================
+    account_expiry_date     TIMESTAMP    NULL,
+    credentials_expiry_date TIMESTAMP    NULL,
+    last_password_change    TIMESTAMP    NULL,
+    must_change_password    BOOLEAN      NULL,
+
+    -- =========================================================================
+    -- JPA AUDITING (Track when metadata changed)
+    -- =========================================================================
+    created_at              TIMESTAMP    NULL,
+    updated_at              TIMESTAMP    NULL,
+    created_by              VARCHAR(50)  NULL,
+    updated_by              VARCHAR(50)  NULL,
+    version                 BIGINT       NULL,
+
+    -- =========================================================================
+    -- CONSTRAINTS
+    -- =========================================================================
+    PRIMARY KEY (user_id, rev),
+    CONSTRAINT fk_gs_users_aud_rev FOREIGN KEY (rev)
+        REFERENCES public.revinfo(rev) ON DELETE CASCADE
+);
+
+-- =========================================================================
+-- INDEXES FOR COMMON AUDIT QUERIES
+-- =========================================================================
+
+-- Query: "Show me all changes to user X"
+CREATE INDEX IF NOT EXISTS idx_gs_users_aud_user_id
+    ON public.gs_users_aud(user_id);
+
+-- Query: "Show me all changes in revision Y"
+CREATE INDEX IF NOT EXISTS idx_gs_users_aud_rev
+    ON public.gs_users_aud(rev);
+
+-- Query: "Show me all user deletions"
+CREATE INDEX IF NOT EXISTS idx_gs_users_aud_revtype
+    ON public.gs_users_aud(revtype);
+
+-- Query: "Show me changes to email addresses"
+CREATE INDEX IF NOT EXISTS idx_gs_users_aud_email
+    ON public.gs_users_aud(email);
+
+-- Query: "Show me when accounts were locked"
+CREATE INDEX IF NOT EXISTS idx_gs_users_aud_account_locked
+    ON public.gs_users_aud(account_locked)
+    WHERE account_locked = TRUE;
+
+-- Query: "Show me password changes" (when last_password_change was modified)
+CREATE INDEX IF NOT EXISTS idx_gs_users_aud_last_password_change
+    ON public.gs_users_aud(last_password_change);
+
+-- =========================================================================
+-- COMMENTS FOR DOCUMENTATION
+-- =========================================================================
+
+COMMENT ON TABLE public.gs_users_aud IS 'Envers audit table - stores complete history of all changes to gs_users table';
+COMMENT ON COLUMN public.gs_users_aud.user_id IS 'User ID from gs_users table';
+COMMENT ON COLUMN public.gs_users_aud.rev IS 'Revision ID from revinfo table';
+COMMENT ON COLUMN public.gs_users_aud.revtype IS 'Type of change: 0=INSERT (new user), 1=UPDATE (modified user), 2=DELETE (deleted user)';
+
+-- =========================================================================
+-- EXAMPLE QUERIES
+-- =========================================================================
+
+-- Query 1: Get all changes for a specific user
+-- SELECT u.*, r.revtstmp, r.username as changed_by
+-- FROM gs_users_aud u
+-- JOIN revinfo r ON u.rev = r.rev
+-- WHERE u.user_id = 123
+-- ORDER BY r.revtstmp DESC;
+
+-- Query 2: Get all email changes
+-- SELECT u.user_id, u.email, r.revtstmp
+-- FROM gs_users_aud u
+-- JOIN revinfo r ON u.rev = r.rev
+-- WHERE u.revtype = 1  -- UPDATE only
+-- ORDER BY r.revtstmp DESC;
+
+-- Query 3: Get all account lockouts in last 30 days
+-- SELECT u.user_id, u.email, u.locked_until, r.revtstmp
+-- FROM gs_users_aud u
+-- JOIN revinfo r ON u.rev = r.rev
+-- WHERE u.account_locked = TRUE
+--   AND u.revtype = 1
+--   AND r.revtstmp >= EXTRACT(EPOCH FROM NOW() - INTERVAL '30 days') * 1000
+-- ORDER BY r.revtstmp DESC;
+
+-- Query 4: Get password change history for compliance
+-- SELECT u.user_id, u.email, u.last_password_change, r.revtstmp, r.username
+-- FROM gs_users_aud u
+-- JOIN revinfo r ON u.rev = r.rev
+-- WHERE u.last_password_change IS NOT NULL
+--   AND u.revtype = 1
+-- ORDER BY u.user_id, r.revtstmp DESC;
+
+-- Query 5: Track who enabled/disabled accounts
+-- SELECT u.user_id, u.email, u.enabled, r.username as changed_by, r.revtstmp
+-- FROM gs_users_aud u
+-- JOIN revinfo r ON u.rev = r.rev
+-- WHERE u.revtype = 1
+-- ORDER BY r.revtstmp DESC;
+
+-- =========================================================================
+-- DATA RETENTION POLICY (Optional - uncomment if needed)
+-- =========================================================================
+
+-- Delete audit records older than 7 years (regulatory compliance)
+-- Run this as a scheduled job (e.g., once per month)
+/*
+DELETE FROM gs_users_aud
+WHERE rev IN (
+    SELECT rev FROM revinfo
+    WHERE revtstmp < EXTRACT(EPOCH FROM NOW() - INTERVAL '7 years') * 1000
+);
+
+DELETE FROM revinfo
+WHERE revtstmp < EXTRACT(EPOCH FROM NOW() - INTERVAL '7 years') * 1000;
+*/
+
+-- =========================================================================
+-- HIBERNATE ENVERS AUDIT TABLE FOR JOIN TABLE (gs_user_roles)
+-- =========================================================================
+-- This table is required because we're using:
+-- @Audited(targetAuditMode = RelationTargetAuditMode.RELATION_AND_TARGET)
+-- on the User.roles relationship
+--
+-- This tracks when roles are added/removed from users
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS public.gs_user_roles_aud
+(
+    -- =========================================================================
+    -- REVISION INFO
+    -- =========================================================================
+    rev                     BIGINT       NOT NULL,  -- References revinfo.rev
+    revtype                 SMALLINT     NOT NULL,  -- 0=INSERT, 1=UPDATE, 2=DELETE
+
+    -- =========================================================================
+    -- JOIN TABLE COLUMNS (from gs_user_roles)
+    -- =========================================================================
+    user_id                 BIGINT       NOT NULL,  -- User ID
+    role_id                 INTEGER      NOT NULL,  -- Role ID (INTEGER to match your Role entity)
+
+    -- =========================================================================
+    -- CONSTRAINTS
+    -- =========================================================================
+    PRIMARY KEY (user_id, role_id, rev),
+
+    CONSTRAINT fk_gs_user_roles_aud_rev
+        FOREIGN KEY (rev) REFERENCES public.revinfo(rev) ON DELETE CASCADE
+);
+
+-- =========================================================================
+-- INDEXES FOR COMMON QUERIES
+-- =========================================================================
+
+-- Query: "Show me all role changes for a user"
+CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_user_id
+    ON public.gs_user_roles_aud(user_id);
+
+-- Query: "Show me all users who had a specific role"
+CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_role_id
+    ON public.gs_user_roles_aud(role_id);
+
+-- Query: "Show me all role changes in a specific revision"
+CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_rev
+    ON public.gs_user_roles_aud(rev);
+
+-- Query: "Show me when roles were added vs removed"
+CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_revtype
+    ON public.gs_user_roles_aud(revtype);
+
+-- =========================================================================
+-- COMMENTS
+-- =========================================================================
+
+COMMENT ON TABLE public.gs_user_roles_aud IS
+    'Envers audit table for gs_user_roles join table - tracks role assignments and removals';
+
+COMMENT ON COLUMN public.gs_user_roles_aud.rev IS
+    'Revision ID from revinfo table';
+
+COMMENT ON COLUMN public.gs_user_roles_aud.revtype IS
+    'Type of change: 0=INSERT (role assigned), 2=DELETE (role removed)';
+
+COMMENT ON COLUMN public.gs_user_roles_aud.user_id IS
+    'User ID from gs_users table';
+
+COMMENT ON COLUMN public.gs_user_roles_aud.role_id IS
+    'Role ID from gs_roles table';
+
+-- =========================================================================
+-- EXAMPLE QUERIES
+-- =========================================================================
+
+-- Query 1: Get all role assignments/removals for a user
+-- SELECT ur.*, r.revtstmp, r.username as changed_by, r.ip_address
+-- FROM gs_user_roles_aud ur
+-- JOIN revinfo r ON ur.rev = r.rev
+-- WHERE ur.user_id = 123
+-- ORDER BY r.revtstmp DESC;
+
+-- Query 2: Find when a user was given ADMIN role
+-- SELECT ur.user_id, ur.role_id, r.revtstmp, r.username
+-- FROM gs_user_roles_aud ur
+-- JOIN revinfo r ON ur.rev = r.rev
+-- JOIN gs_roles gr ON ur.role_id = gr.role_id
+-- WHERE ur.user_id = 123
+--   AND gr.role_name = 'ROLE_ADMIN'
+--   AND ur.revtype = 0  -- INSERT (role was added)
+-- ORDER BY r.revtstmp DESC;
+
+-- Query 3: Find when a user's admin role was revoked
+-- SELECT ur.user_id, ur.role_id, r.revtstmp, r.username
+-- FROM gs_user_roles_aud ur
+-- JOIN revinfo r ON ur.rev = r.rev
+-- JOIN gs_roles gr ON ur.role_id = gr.role_id
+-- WHERE ur.user_id = 123
+--   AND gr.role_name = 'ROLE_ADMIN'
+--   AND ur.revtype = 2  -- DELETE (role was removed)
+-- ORDER BY r.revtstmp DESC;
+
+-- Query 4: Get all users who had ADMIN role at any point
+-- SELECT DISTINCT ur.user_id, u.email, u.username
+-- FROM gs_user_roles_aud ur
+-- JOIN gs_users u ON ur.user_id = u.user_id
+-- JOIN gs_roles gr ON ur.role_id = gr.role_id
+-- WHERE gr.role_name = 'ROLE_ADMIN'
+--   AND ur.revtype = 0;  -- Only assignments, not removals
+
+-- Query 5: Track privilege escalation (when non-admins became admins)
+-- SELECT
+--     ur.user_id,
+--     u.email,
+--     r.revtstmp,
+--     r.username as granted_by,
+--     r.ip_address
+-- FROM gs_user_roles_aud ur
+-- JOIN revinfo r ON ur.rev = r.rev
+-- JOIN gs_users u ON ur.user_id = u.user_id
+-- JOIN gs_roles gr ON ur.role_id = gr.role_id
+-- WHERE gr.role_name IN ('ROLE_ADMIN', 'ROLE_MASTER_ADMIN')
+--   AND ur.revtype = 0  -- Role was added
+-- ORDER BY r.revtstmp DESC;

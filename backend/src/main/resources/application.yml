@@ -26,6 +26,10 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        envers:
+          enabled: true
+          audit_table_suffix: _aud
+          store_data_at_delete: true
 
   # Elasticsearch (Direct API Access)
   elasticsearch:
@@ -152,6 +156,7 @@ logging:
     com.rishan.guardianstack: DEBUG
     org.springframework.security: INFO
     com.rishan.guardianstack.auth: DEBUG
+    org.hibernate.envers: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
