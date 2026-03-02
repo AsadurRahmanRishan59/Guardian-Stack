@@ -1,7 +1,8 @@
 package com.rishan.guardianstack.masteradmin.audit.user;
 
+import com.rishan.guardianstack.auth.model.User;
+import com.rishan.guardianstack.core.domain.CustomRevisionEntity;
 import com.rishan.guardianstack.masteradmin.audit.user.filter.AuditFilterRequest;
-import com.rishan.guardianstack.revision.CustomRevisionEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.envers.RevisionType;
@@ -14,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -31,7 +34,7 @@ public class MasterAdminUserAuditServiceImpl implements MasterAdminUserAuditServ
     public Page<AuditTimelineItemDTO> getTimelineItems(AuditFilterRequest filter) {
         List<Object[]> raw  = auditRepository.findAuditRevisions(filter);
         Long total          = auditRepository.countAuditRevisions(filter);
-        List<MasterAdminUserAuditSnapshot> snapshots = raw.stream().map(this::toSnapshot).collect(Collectors.toList());
+        List<MasterAdminUserAuditSnapshot> snapshots = raw.stream().map(this::toSnapshot).toList();
 
         List<AuditTimelineItemDTO> items = new ArrayList<>();
         for (int i = 0; i < snapshots.size(); i++) {
@@ -67,7 +70,7 @@ public class MasterAdminUserAuditServiceImpl implements MasterAdminUserAuditServ
     public List<AuditTimelineItemDTO> getUserTimeline(Long userId) {
         List<Object[]> raw = auditRepository.findAuditRevisions(
                 new AuditFilterRequest(userId, null, null, null, null, null, null, 0, 500));
-        List<MasterAdminUserAuditSnapshot> snapshots = raw.stream().map(this::toSnapshot).collect(Collectors.toList());
+        List<MasterAdminUserAuditSnapshot> snapshots = raw.stream().map(this::toSnapshot).toList();
         List<AuditTimelineItemDTO> items = new ArrayList<>();
         for (int i = 0; i < snapshots.size(); i++) {
             items.add(toTimelineItem(snapshots.get(i), i + 1 < snapshots.size() ? snapshots.get(i + 1) : null));
@@ -76,12 +79,12 @@ public class MasterAdminUserAuditServiceImpl implements MasterAdminUserAuditServ
     }
 
     private MasterAdminUserAuditSnapshot toSnapshot(Object[] triple) {
-        GsUser               user    = (GsUser)               triple[0];
+        User               user    = (User)               triple[0];
         CustomRevisionEntity rev     = (CustomRevisionEntity) triple[1];
         RevisionType         revType = (RevisionType)         triple[2];
-        Set<String> roles = roleAuditHelper.getRolesAtRevision(user.getUserId(), rev.getId());
+        Set<String> roles = roleAuditHelper.getRolesAtRevision(user.getUserId(), rev.getRev());
         return MasterAdminUserAuditSnapshot.builder()
-                .revisionNumber(rev.getId()).revisionType(mapRevType(revType))
+                .revisionNumber(rev.getRev()).revisionType(mapRevType(revType))
                 .timestamp(toLocalDateTime(rev.getTimestamp()))
                 .changedBy(rev.getUsername()).ipAddress(rev.getIpAddress())
                 .userId(user.getUserId()).username(user.getUsername()).email(user.getEmail())

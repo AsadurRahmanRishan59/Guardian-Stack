@@ -13,7 +13,7 @@ export async function GET(
     // 2. Pass the extracted variables into the backend URL string
     return proxyToBackend(
         request, 
-        `/api/v1/master-admin/audit/users/${userId}/revision/${revisionNumber}`, 
+        `/api/master-admin/audit/users/${userId}/revision/${revisionNumber}`, 
         { requireAuth: true }
     );
 }

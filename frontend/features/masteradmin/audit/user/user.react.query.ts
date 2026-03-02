@@ -58,3 +58,65 @@ export function useQueryRevisionSnapshot(userId?: number, revisionNumber?: numbe
         gcTime: 10 * 60 * 1000, // Keep in memory for 10 minutes of inactivity
     });
 }
+
+// features/masteradmin/audit/user/user.react.query.ts
+
+import {  keepPreviousData } from '@tanstack/react-query';
+import { getRevisionDetail, getTimelineItems, getUserTimeline } from './user.service';
+
+
+// ─── Query Keys (typed, factory pattern) ──────────────────────────────────
+
+export const auditKeys = {
+  all:      ()                                    => ['userAudit']                                           as const,
+  timeline: (filter: AuditFilterRequest)          => ['userAudit', 'timeline', filter]                       as const,
+  user:     (userId: number)                      => ['userAudit', 'user',     userId]                       as const,
+  detail:   (userId: number, rev: number)         => ['userAudit', 'detail',   userId, rev]                  as const,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEFT PANEL
+// Slim timeline items — driven by filter state.
+// placeholderData keeps the previous page visible during pagination transitions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useTimelineItems(filter: AuditFilterRequest) {
+  return useQuery({
+    queryKey:        auditKeys.timeline(filter),
+    queryFn:         () => getTimelineItems(filter),
+    placeholderData: keepPreviousData,  // smooth page transitions
+    staleTime:       30_000,            // 30s — audit data is near-real-time, not live
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SINGLE USER DRILL-DOWN
+// Full timeline for one user. Only fetches when userId is provided.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useUserTimeline(userId?: number) {
+  return useQuery({
+    queryKey: auditKeys.user(userId!),
+    queryFn:  () => getUserTimeline(userId!),
+    enabled:  !!userId,
+    staleTime: 30_000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RIGHT PANEL
+// Full revision detail + diff. Loaded lazily on node click.
+//
+// staleTime: Infinity — forensic data is immutable; once fetched, never re-fetch.
+// gcTime: 10 min — keep in cache for fast back-and-forth between nodes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useRevisionDetail(userId?: number, revisionNumber?: number) {
+  return useQuery({
+    queryKey: auditKeys.detail(userId!, revisionNumber!),
+    queryFn:  () => getRevisionDetail(userId!, revisionNumber!),
+    enabled:  !!userId && !!revisionNumber,
+    staleTime: Infinity,
+    gcTime:    10 * 60 * 1000,
+  });
+}

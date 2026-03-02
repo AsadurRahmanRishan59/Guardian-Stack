@@ -14,3 +14,52 @@ export function getUserAuditHistory(userId: number): Promise<ApiResponse<MasterA
 export function getRevisionSnapshot(userId: number, revisionNumber: number): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
     return api.client.get(`/master-admin/audit/users/${userId}/revision/${revisionNumber}`);
 }
+
+// features/masteradmin/audit/user/user.service.ts
+
+
+import {
+
+  AuditTimelineItemDTO,
+
+  SpringPage,
+} from './user.types';
+
+/**
+ * LEFT PANEL
+ * Slim timeline items — paginated, filterable.
+ * Call this on page load and whenever filters/page change.
+ */
+export function getTimelineItems(
+  filter: AuditFilterRequest
+): Promise<SpringPage<AuditTimelineItemDTO>> {
+  return api.client.get(
+    '/master-admin/audit/users',
+    filter as Record<string, string | number | boolean | null | undefined>
+  );
+}
+
+/**
+ * SINGLE USER TIMELINE
+ * All timeline nodes for one user.
+ * Call when Admin opens the user-specific drill-down.
+ */
+export function getUserTimeline(
+  userId: number
+): Promise<AuditTimelineItemDTO[]> {
+  return api.client.get(`/master-admin/audit/users/${userId}`);
+}
+
+/**
+ * RIGHT PANEL
+ * Full revision detail with pre-computed diff.
+ * Call lazily when Admin clicks a timeline node.
+ */
+export function getRevisionDetail(
+  userId: number,
+  revisionNumber: number
+): Promise<MasterAdminUserAuditDTO> {
+  return api.client.get(
+    `/master-admin/audit/users/${userId}/revision/${revisionNumber}`
+  );
+}
