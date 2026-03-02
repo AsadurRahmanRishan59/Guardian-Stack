@@ -1,6 +1,5 @@
 package com.rishan.guardianstack.masteradmin.audit.user;
 
-import com.rishan.guardianstack.auth.model.User;
 import com.rishan.guardianstack.masteradmin.audit.user.filter.AuditFilterRequest;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -21,118 +20,81 @@ public class MasterAdminUserAuditRepository {
 
     private final EntityManager entityManager;
 
-    /**
-     * Returns a filtered, paginated list of (GsUser revision, RevisionInfo, RevisionType)
-     * triples from Hibernate Envers.
-     * Each element in the list is Object[3]:
-     *   [0] = GsUser (snapshot at that revision)
-     *   [1] = CustomRevisionEntity (contains username, ip_address, revtstmp)
-     *   [2] = RevisionType (ADD, MOD, DEL)
-     */
     @SuppressWarnings("unchecked")
     public List<Object[]> findAuditRevisions(AuditFilterRequest filter) {
         AuditReader reader = AuditReaderFactory.get(entityManager);
-
         AuditQuery query = reader.createQuery()
-                .forRevisionsOfEntity(User.class, false, true); // false=include revision info, true=include deleted
-
-        List<AuditCriterion> criteria = buildCriteria(filter);
-        criteria.forEach(query::add);
-
-        // Sort by revision number DESC (newest first — required for UI diff logic)
+                .forRevisionsOfEntity(GsUser.class, false, true);
+        buildCriteria(filter).forEach(query::add);
         query.addOrder(AuditEntity.revisionNumber().desc());
-
-        // Pagination
         query.setFirstResult(filter.page() * filter.size());
         query.setMaxResults(filter.size());
-
         return query.getResultList();
     }
 
-    /**
-     * Count total results for pagination metadata.
-     */
     public Long countAuditRevisions(AuditFilterRequest filter) {
         AuditReader reader = AuditReaderFactory.get(entityManager);
-
         AuditQuery query = reader.createQuery()
-                .forRevisionsOfEntity(User.class, false, true)
+                .forRevisionsOfEntity(GsUser.class, false, true)
                 .addProjection(AuditEntity.revisionNumber().count());
-
-        List<AuditCriterion> criteria = buildCriteria(filter);
-        criteria.forEach(query::add);
-
+        buildCriteria(filter).forEach(query::add);
         return (Long) query.getSingleResult();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────────────────
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findRevisionAndPredecessor(Long userId, Long revisionNumber) {
+        AuditReader reader = AuditReaderFactory.get(entityManager);
+        List<Object[]> result = new ArrayList<>();
 
-    private List<AuditCriterion> buildCriteria(AuditFilterRequest filter) {
-        List<AuditCriterion> criteria = new ArrayList<>();
+        List<Object[]> target = reader.createQuery()
+                .forRevisionsOfEntity(GsUser.class, false, true)
+                .add(AuditEntity.property("id").eq(userId))
+                .add(AuditEntity.revisionNumber().eq(revisionNumber))
+                .getResultList();
+        if (target.isEmpty()) return result;
+        result.add(target.get(0));
 
-        // Filter by userId
-        if (filter.userId() != null) {
-            criteria.add(AuditEntity.property("id").eq(filter.userId()));
-        }
+        List<Object[]> predecessor = reader.createQuery()
+                .forRevisionsOfEntity(GsUser.class, false, true)
+                .add(AuditEntity.property("id").eq(userId))
+                .add(AuditEntity.revisionNumber().lt(revisionNumber))
+                .addOrder(AuditEntity.revisionNumber().desc())
+                .setMaxResults(1)
+                .getResultList();
+        if (!predecessor.isEmpty()) result.add(predecessor.get(0));
 
-        // Filter by email (exact match — for partial, use native SQL approach below)
-        if (filter.email() != null && !filter.email().isBlank()) {
-            criteria.add(AuditEntity.property("email").ilike("%" + filter.email().trim() + "%"));
-        }
-
-        // Filter by changedBy (stored in revinfo.username)
-        if (filter.changedBy() != null && !filter.changedBy().isBlank()) {
-            criteria.add(
-                    AuditEntity.revisionProperty("username").ilike("%" + filter.changedBy().trim() + "%")
-            );
-        }
-
-        // Filter by IP address prefix
-        if (filter.ipAddress() != null && !filter.ipAddress().isBlank()) {
-            criteria.add(
-                    AuditEntity.revisionProperty("ipAddress").ilike(filter.ipAddress().trim() + "%")
-            );
-        }
-
-        // Filter by revision type (ADD=0, MOD=1, DEL=2)
-        // Corrected logic for Revision Type 'OR' criteria
-        if (filter.revisionTypes() != null && !filter.revisionTypes().isEmpty()) {
-            List<org.hibernate.envers.RevisionType> types = filter.revisionTypes().stream()
-                    .map(this::mapRevisionType)
-                    .toList();
-
-            if (types.size() == 1) {
-                criteria.add(AuditEntity.revisionType().eq(types.getFirst()));
-            } else if (types.size() > 1) {
-                // Build the OR chain properly
-                AuditCriterion orChain = AuditEntity.revisionType().eq(types.getFirst());
-                for (int i = 1; i < types.size(); i++) {
-                    orChain = AuditEntity.or(orChain, AuditEntity.revisionType().eq(types.get(i)));
-                }
-                criteria.add(orChain);
-            }
-        }
-
-        // Date range filter using revtstmp (milliseconds epoch)
-        if (filter.from() != null) {
-            long fromMs = filter.from().toInstant(ZoneOffset.UTC).toEpochMilli();
-            criteria.add(AuditEntity.revisionProperty("timestamp").ge(fromMs));
-        }
-        if (filter.to() != null) {
-            long toMs = filter.to().toInstant(ZoneOffset.UTC).toEpochMilli();
-            criteria.add(AuditEntity.revisionProperty("timestamp").le(toMs));
-        }
-
-        return criteria;
+        return result;
     }
 
-    private org.hibernate.envers.RevisionType mapRevisionType(String type) {
-        return switch (type.toUpperCase()) {
-            case "ADD", "CREATED" -> org.hibernate.envers.RevisionType.ADD;
-            case "DEL", "DELETED" -> org.hibernate.envers.RevisionType.DEL;
-            default -> org.hibernate.envers.RevisionType.MOD;
-        };
+    private List<AuditCriterion> buildCriteria(AuditFilterRequest filter) {
+        List<AuditCriterion> c = new ArrayList<>();
+        if (filter.userId() != null)
+            c.add(AuditEntity.property("id").eq(filter.userId()));
+        if (filter.email() != null && !filter.email().isBlank())
+            c.add(AuditEntity.property("email").ilike("%" + filter.email().trim() + "%"));
+        if (filter.changedBy() != null && !filter.changedBy().isBlank())
+            c.add(AuditEntity.revisionProperty("username").ilike("%" + filter.changedBy().trim() + "%"));
+        if (filter.ipAddress() != null && !filter.ipAddress().isBlank())
+            c.add(AuditEntity.revisionProperty("ipAddress").ilike(filter.ipAddress().trim() + "%"));
+        if (filter.revisionTypes() != null && !filter.revisionTypes().isEmpty()) {
+            List<org.hibernate.envers.RevisionType> types = filter.revisionTypes().stream()
+                    .map(s -> switch (s.toUpperCase()) {
+                        case "ADD","CREATED" -> org.hibernate.envers.RevisionType.ADD;
+                        case "DEL","DELETED" -> org.hibernate.envers.RevisionType.DEL;
+                        default              -> org.hibernate.envers.RevisionType.MOD;
+                    }).toList();
+            if (types.size() == 1) {
+                c.add(AuditEntity.revisionType().eq(types.get(0)));
+            } else {
+                c.add(AuditEntity.or(types.stream()
+                        .map(t -> (AuditCriterion) AuditEntity.revisionType().eq(t))
+                        .toArray(AuditCriterion[]::new)));
+            }
+        }
+        if (filter.from() != null)
+            c.add(AuditEntity.revisionProperty("timestamp").ge(filter.from().toInstant(ZoneOffset.UTC).toEpochMilli()));
+        if (filter.to() != null)
+            c.add(AuditEntity.revisionProperty("timestamp").le(filter.to().toInstant(ZoneOffset.UTC).toEpochMilli()));
+        return c;
     }
 }

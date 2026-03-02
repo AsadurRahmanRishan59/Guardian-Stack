@@ -6,16 +6,16 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 /**
- * FULL DTO — Powers the Right Rail Inspector Panel.
- * Loaded lazily on node click. Contains the full snapshot + pre-computed diff.
+ * Internal projection — used only by AuditDiffMapper and service layer.
+ * Never exposed through the API.
  */
 @Builder
-public record MasterAdminUserAuditDTO(
+public record MasterAdminUserAuditSnapshot(
         Long          revisionNumber,
-        String        revisionType,
-        LocalDateTime timestamp,
         String        changedBy,
         String        ipAddress,
+        LocalDateTime timestamp,
+        String        revisionType,
         Long          userId,
         String        username,
         String        email,
@@ -23,8 +23,8 @@ public record MasterAdminUserAuditDTO(
         Set<String>   roles,
         Boolean       enabled,
         Boolean       accountLocked,
+        Boolean       mustChangePassword,
         LocalDateTime accountExpiryDate,
         LocalDateTime credentialsExpiryDate,
-        LocalDateTime lastPasswordChange,
-        AuditDiffDTO  diff   // null only for very first revision (no predecessor)
+        LocalDateTime lastPasswordChange
 ) {}
