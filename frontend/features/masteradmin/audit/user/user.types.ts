@@ -75,8 +75,8 @@ export interface AuditFilterRequest {
   revisionTypes?: string;     // comma-separated: "CREATED,MODIFIED"
   from?:          string;     // ISO-8601
   to?:            string;     // ISO-8601
-  page:           number;
-  size:           number;
+  page?:           number;
+  size?:           number;
 }
 
 // ─── PAGINATION ────────────────────────────────────────────────────────────

@@ -1,29 +1,7 @@
 // features/masteradmin/audit/user/user.service.ts
 import { api } from "@/lib/api.client";
 import { ApiResponse } from "@/types/api.types";
-import { AuditFilterRequest, MasterAdminUserAuditDTO } from "./user.types";
-
-export function getAuditHistory(searchCriteria?: AuditFilterRequest): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
-    return api.client.get('/master-admin/audit/users', searchCriteria as Record<string, string | number | boolean | null | undefined>);
-}
-
-export function getUserAuditHistory(userId: number): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
-    return api.client.get(`/master-admin/audit/users/${userId}`);
-}
-
-export function getRevisionSnapshot(userId: number, revisionNumber: number): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
-    return api.client.get(`/master-admin/audit/users/${userId}/revision/${revisionNumber}`);
-}
-
-// features/masteradmin/audit/user/user.service.ts
-
-
-import {
-
-  AuditTimelineItemDTO,
-
-  SpringPage,
-} from './user.types';
+import { AuditFilterRequest, AuditTimelineItemDTO, MasterAdminUserAuditDTO } from "./user.types";
 
 /**
  * LEFT PANEL
@@ -32,7 +10,7 @@ import {
  */
 export function getTimelineItems(
   filter: AuditFilterRequest
-): Promise<SpringPage<AuditTimelineItemDTO>> {
+): Promise<ApiResponse<AuditTimelineItemDTO>> {
   return api.client.get(
     '/master-admin/audit/users',
     filter as Record<string, string | number | boolean | null | undefined>
@@ -46,7 +24,7 @@ export function getTimelineItems(
  */
 export function getUserTimeline(
   userId: number
-): Promise<AuditTimelineItemDTO[]> {
+): Promise<ApiResponse<AuditTimelineItemDTO[]>> {
   return api.client.get(`/master-admin/audit/users/${userId}`);
 }
 
@@ -58,8 +36,21 @@ export function getUserTimeline(
 export function getRevisionDetail(
   userId: number,
   revisionNumber: number
-): Promise<MasterAdminUserAuditDTO> {
+): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
   return api.client.get(
     `/master-admin/audit/users/${userId}/revision/${revisionNumber}`
   );
 }
+
+
+// export function getAuditHistory(searchCriteria?: AuditFilterRequest): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
+//   return api.client.get('/master-admin/audit/users', searchCriteria as Record<string, string | number | boolean | null | undefined>);
+// }
+
+// export function getUserAuditHistory(userId: number): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
+//   return api.client.get(`/master-admin/audit/users/${userId}`);
+// }
+
+// export function getRevisionSnapshot(userId: number, revisionNumber: number): Promise<ApiResponse<MasterAdminUserAuditDTO>> {
+//   return api.client.get(`/master-admin/audit/users/${userId}/revision/${revisionNumber}`);
+// }
