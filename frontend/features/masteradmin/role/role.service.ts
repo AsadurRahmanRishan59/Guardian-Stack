@@ -4,5 +4,5 @@ import { Role } from "@/types/auth.types";
 
 
 export function getRoles(): Promise<ApiResponse<Role>> {
-    return api.client.get('/admin/roles');
+    return api.client.get('/master-admin/roles');
 }
