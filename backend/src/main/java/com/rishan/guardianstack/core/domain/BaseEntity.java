@@ -6,6 +6,7 @@ import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.envers.Audited;
 import org.hibernate.envers.NotAudited;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
+@Audited
 public abstract class BaseEntity {
 
     @CreatedDate
