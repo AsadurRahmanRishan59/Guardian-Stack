@@ -1,4 +1,4 @@
-// features/admin/user/user.types.ts
+// features/masteradmin/user/user.types.ts
 import { AppRole, Role } from "@/types/auth.types";
 
 export enum SignUpMethod {
@@ -97,7 +97,7 @@ export interface MasterAdminUserDTO {
  *   username, email, password, roleIds,
  *   accountExpiryDate, passwordValidityDays, enabled, mustChangePassword
  */
-export interface AdminUserCreateRequestDTO {
+export interface MasterAdminUserCreateRequestDTO {
   username: string;
   email: string;
   password: string;
@@ -114,7 +114,7 @@ export interface AdminUserCreateRequestDTO {
  *   enabled, mustChangePassword, passwordValidityDays,
  *   lockedUntil, accountExpiryDate, credentialsExpiryDate
  */
-export interface AdminUserUpdateRequestDTO {
+export interface MasterAdminUserUpdateRequestDTO {
   username?: string;
   email: string;
   password?: string | null;

@@ -101,7 +101,7 @@ public class MasterAdminUserMapper {
 
     public void updateUser(User user, UpdateUserRequestDTO dto, Set<Role> roles) {
         // 1. Basic Identity & Access
-        user.setUsername(dto.username());
+//        user.setUsername(dto.username());
         user.setEmail(dto.email());
         user.setRoles(roles);
         user.setEnabled(dto.enabled());

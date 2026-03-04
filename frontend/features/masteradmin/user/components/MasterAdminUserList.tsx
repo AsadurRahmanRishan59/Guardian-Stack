@@ -29,7 +29,7 @@ import {
 } from "../user.react.query";
 import { MasterAdminUserViewFilterFormData } from "../user.schema";
 import { MasterAdminUserViewFilterForm } from "./MasterAdminUserViewFilterForm";
-import AdminUserModal from "./AdminUserModal";
+import AdminUserModal from "./MasterAdminUserModal";
 import {
   Dialog,
   DialogContent,

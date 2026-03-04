@@ -56,7 +56,7 @@ export default function AdminUserModal({
 
   // Helper functions for null-safe checks
   const isTrue = (value?: boolean | null): boolean => value === true;
-  const isFalse = (value?: boolean | null): boolean => value === false;
+  // const isFalse = (value?: boolean | null): boolean => value === false;
   const isNotTrue = (value?: boolean | null): boolean => value !== true;
 
   const formatDateTime = (dateString?: string | null) => {
@@ -92,10 +92,12 @@ export default function AdminUserModal({
 
   const getRoleDisplayName = (role: AppRole) => {
     switch (role) {
-      case AppRole.EMPLOYEE:
+      case AppRole.MASTER_ADMIN:
         return "Master Admin";
       case AppRole.ADMIN:
         return "Admin";
+      case AppRole.EMPLOYEE:
+        return "Employee";
       case AppRole.USER:
         return "User";
       default:
@@ -136,9 +138,9 @@ export default function AdminUserModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[95vh] p-0 gap-0 overflow-hidden">
         {/* Header Section - Fixed */}
-        <DialogHeader className="px-6 pt-6 pb-4 space-y-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 border-b">
+        <DialogHeader className="px-6 pt-6 pb-4 space-y-0 bg-linear-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 border-b">
           <div className="flex items-start gap-4">
-            <div className="shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <div className="shrink-0 w-14 h-14 rounded-xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
               <UserCog className="h-7 w-7 text-white" />
             </div>
             <div className="flex-1 min-w-0">
@@ -183,7 +185,10 @@ export default function AdminUserModal({
                       </Badge>
                     )}
                     {isTrue(userData.mustChangePassword) && (
-                      <Badge variant="outline" className="shadow-sm border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400">
+                      <Badge
+                        variant="outline"
+                        className="shadow-sm border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400"
+                      >
                         <AlertTriangle className="w-3 h-3 mr-1" />
                         Password Reset Required
                       </Badge>
@@ -238,28 +243,38 @@ export default function AdminUserModal({
           ) : userData ? (
             <div className="p-6 space-y-6">
               {/* Security Overview Card */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-xl p-5 border border-blue-200 dark:border-blue-800 shadow-sm">
+              <div className="bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-xl p-5 border border-blue-200 dark:border-blue-800 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
                       <ShieldAlert className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-base">Security Overview</h3>
-                      <p className="text-xs text-muted-foreground">Account security status</p>
+                      <h3 className="font-semibold text-base">
+                        Security Overview
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Account security status
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`text-3xl font-bold ${getSecurityScoreColor(getSecurityScore())}`}>
+                    <div
+                      className={`text-3xl font-bold ${getSecurityScoreColor(getSecurityScore())}`}
+                    >
                       {getSecurityScore()}%
                     </div>
-                    <p className="text-xs text-muted-foreground">Security Score</p>
+                    <p className="text-xs text-muted-foreground">
+                      Security Score
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <SecurityMetric
                     label="Account"
-                    isSecure={userData.enabled && isNotTrue(userData.accountExpired)}
+                    isSecure={
+                      userData.enabled && isNotTrue(userData.accountExpired)
+                    }
                     icon={<User className="w-4 h-4" />}
                   />
                   <SecurityMetric
@@ -326,7 +341,13 @@ export default function AdminUserModal({
                         icon={<AlertCircle className="h-4 w-4 text-red-500" />}
                         label="Failed Login Attempts"
                         value={
-                          <span className={(userData.failedLoginAttempts ?? 0) > 0 ? "font-semibold text-red-600 dark:text-red-400" : ""}>
+                          <span
+                            className={
+                              (userData.failedLoginAttempts ?? 0) > 0
+                                ? "font-semibold text-red-600 dark:text-red-400"
+                                : ""
+                            }
+                          >
                             {userData.failedLoginAttempts ?? 0}
                           </span>
                         }
@@ -337,7 +358,9 @@ export default function AdminUserModal({
                           label="Last Failed Login"
                           value={
                             <div>
-                              <div className="text-sm">{formatDateTime(userData.lastFailedLogin)}</div>
+                              <div className="text-sm">
+                                {formatDateTime(userData.lastFailedLogin)}
+                              </div>
                               <div className="text-xs text-muted-foreground">
                                 {formatRelativeTime(userData.lastFailedLogin)}
                               </div>
@@ -347,13 +370,19 @@ export default function AdminUserModal({
                       )}
                       {userData.lastSuccessfulLogin && (
                         <InfoRow
-                          icon={<CheckCircle className="h-4 w-4 text-green-500" />}
+                          icon={
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          }
                           label="Last Successful Login"
                           value={
                             <div>
-                              <div className="text-sm">{formatDateTime(userData.lastSuccessfulLogin)}</div>
+                              <div className="text-sm">
+                                {formatDateTime(userData.lastSuccessfulLogin)}
+                              </div>
                               <div className="text-xs text-muted-foreground">
-                                {formatRelativeTime(userData.lastSuccessfulLogin)}
+                                {formatRelativeTime(
+                                  userData.lastSuccessfulLogin,
+                                )}
                               </div>
                             </div>
                           }
@@ -361,7 +390,9 @@ export default function AdminUserModal({
                       )}
                       {userData.lockedUntil && (
                         <InfoRow
-                          icon={<LockKeyhole className="h-4 w-4 text-red-500" />}
+                          icon={
+                            <LockKeyhole className="h-4 w-4 text-red-500" />
+                          }
                           label="Locked Until"
                           value={
                             <div className="text-sm font-semibold text-red-600 dark:text-red-400">
@@ -385,19 +416,31 @@ export default function AdminUserModal({
                           label="Last Password Change"
                           value={
                             <div>
-                              <div className="text-sm">{formatDateTime(userData.lastPasswordChange)}</div>
+                              <div className="text-sm">
+                                {formatDateTime(userData.lastPasswordChange)}
+                              </div>
                               <div className="text-xs text-muted-foreground">
-                                {formatRelativeTime(userData.lastPasswordChange)}
+                                {formatRelativeTime(
+                                  userData.lastPasswordChange,
+                                )}
                               </div>
                             </div>
                           }
                         />
                       )}
                       <InfoRow
-                        icon={<AlertTriangle className="h-4 w-4 text-yellow-500" />}
+                        icon={
+                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        }
                         label="Must Change Password"
                         value={
-                          <Badge variant={isTrue(userData.mustChangePassword) ? "destructive" : "secondary"}>
+                          <Badge
+                            variant={
+                              isTrue(userData.mustChangePassword)
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
                             {isTrue(userData.mustChangePassword) ? "Yes" : "No"}
                           </Badge>
                         }
@@ -437,7 +480,7 @@ export default function AdminUserModal({
                         userData.roles.map((role) => (
                           <div
                             key={role.roleId}
-                            className="p-3 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800"
+                            className="p-3 rounded-lg bg-linear-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800"
                           >
                             <div className="flex items-center justify-between mb-1">
                               <div className="flex items-center gap-2">
@@ -476,7 +519,9 @@ export default function AdminUserModal({
                         label="Created"
                         value={
                           <div>
-                            <div className="text-sm">{formatDateTime(userData.createdAt)}</div>
+                            <div className="text-sm">
+                              {formatDateTime(userData.createdAt)}
+                            </div>
                             {userData.createdBy && (
                               <div className="text-xs text-muted-foreground">
                                 by {userData.createdBy}
@@ -491,7 +536,9 @@ export default function AdminUserModal({
                         label="Last Updated"
                         value={
                           <div>
-                            <div className="text-sm">{formatDateTime(userData.updatedAt)}</div>
+                            <div className="text-sm">
+                              {formatDateTime(userData.updatedAt)}
+                            </div>
                             {userData.updatedBy && (
                               <div className="text-xs text-muted-foreground">
                                 by {userData.updatedBy}
@@ -547,7 +594,7 @@ function InfoRow({
       <div className="mt-0.5">{icon}</div>
       <div className="flex-1 min-w-0">
         <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <div className="text-sm break-words">
+        <div className="text-sm wrap-break-word">
           {value || <span className="text-muted-foreground/70">Not set</span>}
         </div>
       </div>
@@ -569,7 +616,10 @@ function StatusRow({
   return (
     <div className="flex items-center justify-between p-2.5 rounded-lg border bg-background/50">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <Badge variant={isActive ? "default" : "destructive"} className="shadow-sm">
+      <Badge
+        variant={isActive ? "default" : "destructive"}
+        className="shadow-sm"
+      >
         {isActive ? (
           <CheckCircle className="w-3 h-3 mr-1" />
         ) : (
@@ -591,12 +641,18 @@ function SecurityMetric({
   icon: React.ReactNode;
 }) {
   return (
-    <div className={`p-3 rounded-lg border ${isSecure ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"}`}>
-      <div className={`flex items-center gap-1.5 mb-1 ${isSecure ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+    <div
+      className={`p-3 rounded-lg border ${isSecure ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"}`}
+    >
+      <div
+        className={`flex items-center gap-1.5 mb-1 ${isSecure ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}
+      >
         {icon}
       </div>
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className={`text-xs font-semibold mt-0.5 ${isSecure ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+      <div
+        className={`text-xs font-semibold mt-0.5 ${isSecure ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}
+      >
         {isSecure ? "Secure" : "Issue"}
       </div>
     </div>
@@ -641,12 +697,14 @@ function ExpiryCard({
         !hasDate
           ? "bg-muted/50 border-muted"
           : isExpired
-          ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
-          : "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
+            ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+            : "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
       }`}
     >
       <div className="flex items-start justify-between mb-1">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs font-medium text-muted-foreground">
+          {label}
+        </span>
         {hasDate && (
           <>
             {isExpired ? (
@@ -654,7 +712,10 @@ function ExpiryCard({
                 Expired
               </Badge>
             ) : days !== null && days < 30 ? (
-              <Badge variant="outline" className="text-xs px-2 py-0 border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400">
+              <Badge
+                variant="outline"
+                className="text-xs px-2 py-0 border-yellow-300 text-yellow-700 dark:border-yellow-700 dark:text-yellow-400"
+              >
                 {days} days left
               </Badge>
             ) : null}
@@ -666,8 +727,8 @@ function ExpiryCard({
           !hasDate
             ? "text-muted-foreground"
             : isExpired
-            ? "text-red-700 dark:text-red-400"
-            : "text-blue-700 dark:text-blue-400"
+              ? "text-red-700 dark:text-red-400"
+              : "text-blue-700 dark:text-blue-400"
         }`}
       >
         {formatDateTime(date)}

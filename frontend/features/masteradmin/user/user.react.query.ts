@@ -1,10 +1,11 @@
-// features/admin/user/user.react.query.ts
+// features/masteradmin/user/user.react.query.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AdminUserCreateRequestDTO, AdminUserUpdateRequestDTO, MasterAdminUserView, MasterAdminUserViewSearchCriteria,  } from "./user.types";
+import { MasterAdminUserCreateRequestDTO, MasterAdminUserUpdateRequestDTO, MasterAdminUserView, MasterAdminUserViewSearchCriteria, } from "./user.types";
 import { createUser, getAdminUserViewFilterOptions, getAllUsers, getUserById, updateUserById } from "./user.service";
 import { toast } from "sonner";
 
-// Hook for paginated users with search/filter
+// ─── List ─────────────────────────────────────────────────────────────────────
+
 export function useQueryAdminUserView(searchCriteria?: MasterAdminUserViewSearchCriteria) {
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ['masterAdminUserView', 'paginated', { criteria: searchCriteria }],
@@ -37,7 +38,8 @@ export function useQueryAdminUserView(searchCriteria?: MasterAdminUserViewSearch
     };
 }
 
-//Get User by userId
+// ─── Single user ──────────────────────────────────────────────────────────────
+
 export function useGetUserById(userId?: number) {
     return useQuery({
         queryKey: ["user", userId],
@@ -52,70 +54,62 @@ export function useGetUserById(userId?: number) {
 }
 
 
-// Create user mutation
+// ─── Create ───────────────────────────────────────────────────────────────────
+
 export function useCreateUser() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (user: AdminUserCreateRequestDTO) => {
-            const response = await createUser(user);
-            return response;
+        mutationFn: (dto: MasterAdminUserCreateRequestDTO) => createUser(dto),
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: ["masterAdminUserView"] });
+            toast.success(res?.message ?? "User created successfully");
         },
-        onSuccess: (response) => {
-            // Invalidate all agent-related queries
-            queryClient.invalidateQueries({ queryKey: ['adminUserView'] });
-            toast.success(response?.message || "User created successfully");
+        onError: (err: Error) => {
+            toast.error(err.message ?? "Failed to create user");
         },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to create user');
-        }
     });
 }
 
-// Update user mutation
+// ─── Update ───────────────────────────────────────────────────────────────────
+
 export function useUpdateUser() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (params: { user: AdminUserUpdateRequestDTO, userId: number }) => {
-            const { user, userId } = params;
-            const response = await updateUserById(user, userId);
-            return response;
+        mutationFn: ({
+            dto,
+            userId,
+        }: {
+            dto: MasterAdminUserUpdateRequestDTO;
+            userId: number;
+        }) => updateUserById(dto, userId),
+        onSuccess: (res, { userId }) => {
+            queryClient.invalidateQueries({ queryKey: ["masterAdminUserView"] });
+            queryClient.invalidateQueries({ queryKey: ["masterAdminUser", userId] });
+            toast.success(res?.message ?? "User updated successfully");
         },
-        onSuccess: (response) => {
-            // Invalidate all user-related queries
-            queryClient.invalidateQueries({ queryKey: ['adminUserView'] });
-            toast.success(response?.message || "User updated successfully");
+        onError: (err: Error) => {
+            toast.error(err.message ?? "Failed to update user");
         },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to update user');
-        }
     });
 }
 
-export function useQueryAdminUserViewFilterOptions() {
-    const {
-        data,
-        isLoading,
-        error,
-        refetch,
-    } = useQuery({
-        queryKey: ["adminUserView", "filter-options"],
-        queryFn: async () => {
-            const response = await getAdminUserViewFilterOptions();
-            return response.data ?? null;
+// ─── Filter options ───────────────────────────────────────────────────────────
 
-        },
+export function useQueryAdminUserViewFilterOptions() {
+    const { data, isLoading, error, refetch } = useQuery({
+        queryKey: ["masterAdminUserView", "filter-options"],
+        queryFn: getAdminUserViewFilterOptions,
         staleTime: 10 * 60 * 1000,
         refetchOnWindowFocus: false,
         retry: 3,
     });
 
     return {
-        filterOptions: data,
+        filterOptions: data?.data ?? null,
         isLoading,
         error,
         refetch,
     };
 }
-

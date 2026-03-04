@@ -1,6 +1,7 @@
+// features/masteradmin/user/user.service.ts
 import { api } from "@/lib/api.client";
 import { ApiResponse } from "@/types/api.types";
-import { AdminUserCreateRequestDTO, AdminUserUpdateRequestDTO, MasterAdminUserDTO, MasterAdminUserViewFilterOptions, MasterAdminUserView, MasterAdminUserViewSearchCriteria, } from "./user.types";
+import { MasterAdminUserCreateRequestDTO, MasterAdminUserUpdateRequestDTO, MasterAdminUserDTO, MasterAdminUserViewFilterOptions, MasterAdminUserView, MasterAdminUserViewSearchCriteria, } from "./user.types";
 
 
 export function getAllUsers(searchCriteria?: MasterAdminUserViewSearchCriteria): Promise<ApiResponse<MasterAdminUserView>> {
@@ -11,12 +12,12 @@ export function getUserById(userId: number): Promise<ApiResponse<MasterAdminUser
     return api.client.get(`/master-admin/user/${userId}`);
 }
 
-export function createUser(adminUserCreateRequestDTO: AdminUserCreateRequestDTO): Promise<ApiResponse<MasterAdminUserDTO>> {
-    return api.client.post('/master-admin/user', adminUserCreateRequestDTO);
+export function createUser(dto: MasterAdminUserCreateRequestDTO): Promise<ApiResponse<void>> {
+    return api.client.post('/master-admin/user', dto);
 }
 
-export function updateUserById(adminUserUpdateRequestDTO: AdminUserUpdateRequestDTO, userId: number): Promise<ApiResponse<MasterAdminUserDTO>> {
-    return api.client.put(`/master-admin/user/${userId}`, adminUserUpdateRequestDTO);
+export function updateUserById(dto: MasterAdminUserUpdateRequestDTO, userId: number): Promise<ApiResponse<void>> {
+    return api.client.put(`/master-admin/user/${userId}`, dto);
 }
 
 export function getAdminUserViewFilterOptions(): Promise<ApiResponse<MasterAdminUserViewFilterOptions>> {
