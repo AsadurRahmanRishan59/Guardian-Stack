@@ -78,15 +78,3 @@ export interface AuditFilterRequest {
   page?:           number;
   size?:           number;
 }
-
-// ─── PAGINATION ────────────────────────────────────────────────────────────
-
-export interface SpringPage<T> {
-  content:          T[];
-  totalElements:    number;
-  totalPages:       number;
-  size:             number;
-  number:           number;   // current page (0-based)
-  first:            boolean;
-  last:             boolean;
-}

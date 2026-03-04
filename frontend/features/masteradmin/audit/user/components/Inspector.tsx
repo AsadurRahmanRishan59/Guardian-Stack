@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { RevBadge, IPLabel, RolePill, formatTs } from "./UiPrimitives";
+import { RevBadge, IPLabel, RolePill, RoleVariant, formatTs, getRoleVariant } from "./UiPrimitives";
 import { DiffTable } from "./DiffTable";
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ function InspectorEmpty() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
       <span className="text-4xl">🔍</span>
-      <p className="text-sm text-muted-foreground text-center max-w-45 leading-relaxed">
+      <p className="text-sm text-muted-foreground text-center max-w-[180px] leading-relaxed">
         Select a revision from the timeline to inspect
       </p>
     </div>
@@ -115,10 +115,11 @@ export function Inspector({ selectedItem }: InspectorProps) {
 
   if (!selectedItem) return <InspectorEmpty />;
   if (isLoading) return <InspectorLoading revNum={selectedItem.revisionNumber} />;
-  if (isError || !detail) return <InspectorError />;
+  if (isError || !detail?.data) return <InspectorError />;
 
-  const { date, time } = formatTs(detail.timestamp);
-  const data = detail.data ?? detail; // handle ApiResponse wrapper
+  // ✅ Unwrap ApiResponse<MasterAdminUserAuditDTO> — data is T | null per global type
+  const data = detail.data;
+  const { date, time } = formatTs(data.timestamp);
 
   return (
     <div className="p-4 md:p-5 space-y-3 overflow-y-auto">
@@ -198,11 +199,7 @@ export function Inspector({ selectedItem }: InspectorProps) {
         <div className="px-4 py-3 flex flex-wrap">
           {data.roles.length > 0
             ? data.roles.map((r: string) => (
-                <RolePill
-                  key={r}
-                  role={r}
-                  variant={r === "ROLE_ADMIN" ? "admin" : "neutral"}
-                />
+                <RolePill key={r} role={r} />
               ))
             : <span className="text-xs text-muted-foreground/40">No roles assigned</span>
           }

@@ -20,7 +20,6 @@ import { FilterBar } from "@/features/masteradmin/audit/user/components/FilterBa
 import { TimelineRail } from "@/features/masteradmin/audit/user/components/TimeLineRail";
 import { Inspector } from "@/features/masteradmin/audit/user/components/Inspector";
 
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 50;
@@ -34,7 +33,9 @@ export default function AuditUsersPage() {
     page: 0,
     size: PAGE_SIZE,
   });
-  const [selectedItem, setSelectedItem] = useState<AuditTimelineItemDTO | null>(null);
+  const [selectedItem, setSelectedItem] = useState<AuditTimelineItemDTO | null>(
+    null,
+  );
   const [inspectorOpen, setInspectorOpen] = useState(false); // mobile: show inspector panel
 
   const updateFilter = useCallback((patch: Partial<AuditFilterRequest>) => {
@@ -42,22 +43,26 @@ export default function AuditUsersPage() {
     setSelectedItem(null);
   }, []);
 
-  const { data: pageData, isLoading, isFetching } = useTimelineItems(filter);
+  const { data: response, isLoading, isFetching } = useTimelineItems(filter);
 
-  const items = pageData?.content ?? [];
-  const totalElements = pageData?.totalElements ?? 0;
-  const totalPages = pageData?.totalPages ?? 0;
+  // ✅ Reads from actual API shape: { data: [...], pagination: { ... } }
+  const items = response?.data ?? [];
+  const totalElements = response?.pagination?.totalElements ?? 0;
+  const totalPages = response?.pagination?.totalPages ?? 0;
 
-  const stats = useMemo(() => ({
-    total: totalElements,
-    critical: items.filter((i) => i.accountLocked || !i.enabled).length,
-    escalations: items.filter((i) => i.hasAdminRoleEscalation).length,
-    unknown: items.filter((i) => !isKnownIP(i.ipAddress)).length,
-  }), [items, totalElements]);
+  const stats = useMemo(
+    () => ({
+      total: totalElements,
+      critical: items.filter((i) => i.accountLocked || !i.enabled).length,
+      escalations: items.filter((i) => i.hasAdminRoleEscalation).length,
+      unknown: items.filter((i) => !isKnownIP(i.ipAddress)).length,
+    }),
+    [items, totalElements],
+  );
 
   const handleSelectItem = useCallback((item: AuditTimelineItemDTO) => {
     setSelectedItem((prev) =>
-      prev?.revisionNumber === item.revisionNumber ? null : item
+      prev?.revisionNumber === item.revisionNumber ? null : item,
     );
     setInspectorOpen(true);
   }, []);
@@ -67,11 +72,15 @@ export default function AuditUsersPage() {
     setSelectedItem(null);
   }, []);
 
-  const hasActiveFilters = !!(filter.email || filter.changedBy || filter.ipAddress || filter.revisionTypes);
+  const hasActiveFilters = !!(
+    filter.email ||
+    filter.changedBy ||
+    filter.ipAddress ||
+    filter.revisionTypes
+  );
 
   return (
     <div className="flex h-screen flex-col bg-background font-sans overflow-hidden">
-
       <TopBar isFetching={isFetching && !isLoading} />
 
       <StatsStrip stats={stats} />
@@ -88,7 +97,6 @@ export default function AuditUsersPage() {
 
       {/* ── Main body ── */}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-
         {/* LEFT RAIL — Timeline */}
         <div
           className={`

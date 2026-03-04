@@ -49,7 +49,7 @@ public class MasterAdminUserAuditRepository {
 
         List<Object[]> target = reader.createQuery()
                 .forRevisionsOfEntity(User.class, false, true)
-                .add(AuditEntity.property("id").eq(userId))
+                .add(AuditEntity.id().eq(userId))
                 .add(AuditEntity.revisionNumber().eq(revisionNumber))
                 .getResultList();
         if (target.isEmpty()) return result;
@@ -57,7 +57,7 @@ public class MasterAdminUserAuditRepository {
 
         List<Object[]> predecessor = reader.createQuery()
                 .forRevisionsOfEntity(User.class, false, true)
-                .add(AuditEntity.property("id").eq(userId))
+                .add(AuditEntity.id().eq(userId))
                 .add(AuditEntity.revisionNumber().lt(revisionNumber))
                 .addOrder(AuditEntity.revisionNumber().desc())
                 .setMaxResults(1)
@@ -70,7 +70,7 @@ public class MasterAdminUserAuditRepository {
     private List<AuditCriterion> buildCriteria(AuditFilterRequest filter) {
         List<AuditCriterion> c = new ArrayList<>();
         if (filter.userId() != null)
-            c.add(AuditEntity.property("id").eq(filter.userId()));
+            c.add(AuditEntity.id().eq(filter.userId()));
         if (filter.email() != null && !filter.email().isBlank())
             c.add(AuditEntity.property("email").ilike("%" + filter.email().trim() + "%"));
         if (filter.changedBy() != null && !filter.changedBy().isBlank())
@@ -84,7 +84,7 @@ public class MasterAdminUserAuditRepository {
                     .map(s -> switch (s.toUpperCase()) {
                         case "ADD", "CREATED" -> org.hibernate.envers.RevisionType.ADD;
                         case "DEL", "DELETED" -> org.hibernate.envers.RevisionType.DEL;
-                        default               -> org.hibernate.envers.RevisionType.MOD;
+                        default -> org.hibernate.envers.RevisionType.MOD;
                     })
                     .toList();
 

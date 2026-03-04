@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { RolePill } from "./UiPrimitives";
+import { RolePill, getRoleVariant } from "./UiPrimitives";
 import type { AuditDiffDTO, DiffField } from "@/features/masteradmin/audit/user/user.types";
 
 interface DiffTableProps {
@@ -25,12 +25,10 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
       return (
         <span className="flex flex-wrap">
           {roles.map((r) => {
-            let variant: "neutral" | "added" | "removed" | "admin" = "neutral";
-            if (isNew && diff.addedRoles.includes(r))
-              variant = r === "ROLE_ADMIN" ? "admin" : "added";
-            if (!isNew && diff.removedRoles.includes(r))
-              variant = "removed";
-            return <RolePill key={r} role={r} variant={variant} />;
+            // Diff-aware: added/removed takes priority; otherwise derive from role type
+            if (isNew  && diff.addedRoles.includes(r))   return <RolePill key={r} role={r} variant="added"   />;
+            if (!isNew && diff.removedRoles.includes(r)) return <RolePill key={r} role={r} variant="removed" />;
+            return <RolePill key={r} role={r} />;
           })}
         </span>
       );
@@ -58,8 +56,8 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
       key={f.fieldName}
       className={cn(
         "border-b border-border/50",
-        f.critical && isChanged && "bg-red-500/3",
-        f.fieldName === "roles" && isChanged && diff.adminEscalation && "bg-amber-400/3"
+        f.critical && isChanged && "bg-red-500/[0.03]",
+        f.fieldName === "roles" && isChanged && diff.adminEscalation && "bg-amber-400/[0.03]"
       )}
     >
       {/* Field name */}
