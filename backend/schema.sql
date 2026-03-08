@@ -457,16 +457,16 @@ SELECT '✅ GuardianStack Insurance Database Setup Complete!' as status,
 
 CREATE TABLE IF NOT EXISTS public.revinfo
 (
-    rev      BIGSERIAL PRIMARY KEY,
-    revtstmp BIGINT NOT NULL,  -- Timestamp in milliseconds (Unix epoch)
+    rev        BIGSERIAL PRIMARY KEY,
+    revtstmp   BIGINT       NOT NULL, -- Timestamp in milliseconds (Unix epoch)
 
     -- Custom fields (optional - add if you want to track who made the change)
-    username VARCHAR(255) NULL,  -- Who made the change
-    ip_address VARCHAR(45) NULL  -- IP address of the user
+    username   VARCHAR(255) NULL,     -- Who made the change
+    ip_address VARCHAR(45)  NULL      -- IP address of the user
 );
 
 -- Index for timestamp queries (common use case: "show me changes in last 30 days")
-CREATE INDEX IF NOT EXISTS idx_revinfo_revtstmp ON public.revinfo(revtstmp);
+CREATE INDEX IF NOT EXISTS idx_revinfo_revtstmp ON public.revinfo (revtstmp);
 
 COMMENT ON TABLE public.revinfo IS 'Envers revision metadata - tracks when and by whom changes were made';
 COMMENT ON COLUMN public.revinfo.rev IS 'Unique revision ID - auto-incremented for each transaction';
@@ -486,13 +486,13 @@ CREATE TABLE IF NOT EXISTS public.gs_users_aud
     -- =========================================================================
     -- PRIMARY KEY (Composite: user_id + rev)
     -- =========================================================================
-    user_id                 BIGINT       NOT NULL,  -- References gs_users.user_id
-    rev                     BIGINT       NOT NULL,  -- References revinfo.rev
+    user_id                 BIGINT       NOT NULL, -- References gs_users.user_id
+    rev                     BIGINT       NOT NULL, -- References revinfo.rev
 
     -- =========================================================================
     -- REVISION TYPE (What happened in this revision?)
     -- =========================================================================
-    revtype                 SMALLINT     NOT NULL,  -- 0=INSERT, 1=UPDATE, 2=DELETE
+    revtype                 SMALLINT     NOT NULL, -- 0=INSERT, 1=UPDATE, 2=DELETE
 
     -- =========================================================================
     -- AUDITED FIELDS (All fields from gs_users that we want to track)
@@ -538,7 +538,7 @@ CREATE TABLE IF NOT EXISTS public.gs_users_aud
     -- =========================================================================
     PRIMARY KEY (user_id, rev),
     CONSTRAINT fk_gs_users_aud_rev FOREIGN KEY (rev)
-        REFERENCES public.revinfo(rev) ON DELETE CASCADE
+        REFERENCES public.revinfo (rev) ON DELETE CASCADE
 );
 
 -- =========================================================================
@@ -547,28 +547,28 @@ CREATE TABLE IF NOT EXISTS public.gs_users_aud
 
 -- Query: "Show me all changes to user X"
 CREATE INDEX IF NOT EXISTS idx_gs_users_aud_user_id
-    ON public.gs_users_aud(user_id);
+    ON public.gs_users_aud (user_id);
 
 -- Query: "Show me all changes in revision Y"
 CREATE INDEX IF NOT EXISTS idx_gs_users_aud_rev
-    ON public.gs_users_aud(rev);
+    ON public.gs_users_aud (rev);
 
 -- Query: "Show me all user deletions"
 CREATE INDEX IF NOT EXISTS idx_gs_users_aud_revtype
-    ON public.gs_users_aud(revtype);
+    ON public.gs_users_aud (revtype);
 
 -- Query: "Show me changes to email addresses"
 CREATE INDEX IF NOT EXISTS idx_gs_users_aud_email
-    ON public.gs_users_aud(email);
+    ON public.gs_users_aud (email);
 
 -- Query: "Show me when accounts were locked"
 CREATE INDEX IF NOT EXISTS idx_gs_users_aud_account_locked
-    ON public.gs_users_aud(account_locked)
+    ON public.gs_users_aud (account_locked)
     WHERE account_locked = TRUE;
 
 -- Query: "Show me password changes" (when last_password_change was modified)
 CREATE INDEX IF NOT EXISTS idx_gs_users_aud_last_password_change
-    ON public.gs_users_aud(last_password_change);
+    ON public.gs_users_aud (last_password_change);
 
 -- =========================================================================
 -- COMMENTS FOR DOCUMENTATION
@@ -585,14 +585,14 @@ CREATE TABLE IF NOT EXISTS public.gs_user_roles_aud
     -- =========================================================================
     -- REVISION INFO
     -- =========================================================================
-    rev                     BIGINT       NOT NULL,  -- References revinfo.rev
-    revtype                 SMALLINT     NOT NULL,  -- 0=INSERT, 1=UPDATE, 2=DELETE
+    rev     BIGINT   NOT NULL, -- References revinfo.rev
+    revtype SMALLINT NOT NULL, -- 0=INSERT, 1=UPDATE, 2=DELETE
 
     -- =========================================================================
     -- JOIN TABLE COLUMNS (from gs_user_roles)
     -- =========================================================================
-    user_id                 BIGINT       NOT NULL,  -- User ID
-    role_id                 INTEGER      NOT NULL,  -- Role ID (INTEGER to match your Role entity)
+    user_id BIGINT   NOT NULL, -- User ID
+    role_id INTEGER  NOT NULL, -- Role ID (INTEGER to match your Role entity)
 
     -- =========================================================================
     -- CONSTRAINTS
@@ -600,7 +600,7 @@ CREATE TABLE IF NOT EXISTS public.gs_user_roles_aud
     PRIMARY KEY (user_id, role_id, rev),
 
     CONSTRAINT fk_gs_user_roles_aud_rev
-        FOREIGN KEY (rev) REFERENCES public.revinfo(rev) ON DELETE CASCADE
+        FOREIGN KEY (rev) REFERENCES public.revinfo (rev) ON DELETE CASCADE
 );
 
 -- =========================================================================
@@ -609,19 +609,19 @@ CREATE TABLE IF NOT EXISTS public.gs_user_roles_aud
 
 -- Query: "Show me all role changes for a user"
 CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_user_id
-    ON public.gs_user_roles_aud(user_id);
+    ON public.gs_user_roles_aud (user_id);
 
 -- Query: "Show me all users who had a specific role"
 CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_role_id
-    ON public.gs_user_roles_aud(role_id);
+    ON public.gs_user_roles_aud (role_id);
 
 -- Query: "Show me all role changes in a specific revision"
 CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_rev
-    ON public.gs_user_roles_aud(rev);
+    ON public.gs_user_roles_aud (rev);
 
 -- Query: "Show me when roles were added vs removed"
 CREATE INDEX IF NOT EXISTS idx_gs_user_roles_aud_revtype
-    ON public.gs_user_roles_aud(revtype);
+    ON public.gs_user_roles_aud (revtype);
 
 -- =========================================================================
 -- COMMENTS
@@ -642,3 +642,63 @@ COMMENT ON COLUMN public.gs_user_roles_aud.user_id IS
 COMMENT ON COLUMN public.gs_user_roles_aud.role_id IS
     'Role ID from gs_roles table';
 
+
+
+CREATE TABLE gs_motor_tariff
+(
+    -- Primary Key
+    tariff_key       SERIAL PRIMARY KEY,
+
+    -- Inherited Audit fields from BaseEntity
+    created_at       TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    updated_at       TIMESTAMP WITHOUT TIME ZONE,
+    created_by       VARCHAR(255),
+    updated_by       VARCHAR(255),
+    version          BIGINT                               DEFAULT 0,
+
+    -- Business Logic Fields
+    tariff_type      VARCHAR(50)                 NOT NULL,
+    group_of_vehicle VARCHAR(500)                NOT NULL,
+    type_of_vehicle  VARCHAR(500)                NOT NULL,
+    category         VARCHAR(500)                NOT NULL,
+
+    -- Financial Fields
+    own_dp_basic     NUMERIC(10, 2)              NOT NULL,
+    act_liability    NUMERIC(10, 2)              NOT NULL,
+
+    -- Percentage Rates
+    full_ins_value   NUMERIC(5, 2)               NOT NULL,
+    fire             NUMERIC(5, 2)               NOT NULL,
+    theft            NUMERIC(5, 2)               NOT NULL,
+    cyclone          NUMERIC(5, 2)               NOT NULL,
+    earthquake       NUMERIC(5, 2)               NOT NULL,
+
+    -- Status
+    is_active        BOOLEAN                     NOT NULL DEFAULT TRUE,
+
+    -- Composite Unique Constraint to prevent duplicate regulatory entries
+    CONSTRAINT uk_gs_vehicle_combo UNIQUE (tariff_type, group_of_vehicle, type_of_vehicle, category)
+);
+
+CREATE TABLE gs_motor_tariff_aud
+(
+    tariff_key       INTEGER NOT NULL,
+    rev              INTEGER NOT NULL REFERENCES revinfo (rev), -- Links to the revision metadata
+    revtype          SMALLINT,                                  -- 0 (ADD), 1 (MOD), 2 (DEL)
+
+    tariff_type      VARCHAR(50),
+    group_of_vehicle VARCHAR(500),
+    type_of_vehicle  VARCHAR(500),
+    category         VARCHAR(500),
+
+    own_dp_basic     NUMERIC(10, 2),
+    full_ins_value   NUMERIC(5, 2),
+    act_liability    NUMERIC(10, 2),
+    fire             NUMERIC(5, 2),
+    theft            NUMERIC(5, 2),
+    cyclone          NUMERIC(5, 2),
+    earthquake       NUMERIC(5, 2),
+    is_active        BOOLEAN,
+
+    PRIMARY KEY (tariff_key, rev)
+);
