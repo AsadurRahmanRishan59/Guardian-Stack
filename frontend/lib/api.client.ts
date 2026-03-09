@@ -1,4 +1,4 @@
-//lib/api.client.ts
+// lib/api.client.ts
 import { ApiErrorResponse, ApiFetchOptions, ApiResponse, HttpMethod, ServerResponse } from "@/types/api.types";
 import { createServerError, handleServerError } from "./api/error-handling";
 
@@ -10,15 +10,12 @@ export const getBackendUrl = (): string => {
     return process.env.SPRING_BOOT_API_URL || 'http://localhost:6060';
 };
 
-
-// Add this helper to your api client file
 function getCookie(name: string): string | undefined {
-    if (typeof document === 'undefined') return undefined; // Check if on server
+    if (typeof document === 'undefined') return undefined;
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
     if (parts.length === 2) return parts.pop()?.split(';').shift();
 }
-
 
 function buildUrl(
     endpoint: string,
@@ -41,6 +38,51 @@ function buildUrl(
     return queryString ? `${endpoint}?${queryString}` : endpoint;
 }
 
+// ─── Singleton refresh promise ────────────────────────────────────────────────
+//
+// Problem: when the JWT expires, every in-flight React Query gets a 401
+// simultaneously. Without this guard, each one independently calls
+// /api/auth/refresh → Spring Boot /api/auth/public/refresh → rate limited.
+//
+// Solution: module-level promise. The first 401 creates it; all subsequent
+// 401s in that tick await the same promise. Once resolved, everyone retries
+// with the new token. The promise is cleared in .finally() so future
+// expirations work normally.
+
+let refreshPromise: Promise<void> | null = null;
+
+async function attemptRefresh(baseUrl: string): Promise<void> {
+    if (refreshPromise) return refreshPromise;
+
+    refreshPromise = fetch(`${baseUrl}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+    }).then(async (refreshResponse) => {
+        if (!refreshResponse.ok) {
+            let errorType = 'session_expired';
+            try {
+                const errorData = await refreshResponse.json();
+                if (errorData.message) {
+                    errorType = errorData.message.toLowerCase();
+                }
+            } catch {
+                // ignore parse failure
+            }
+            console.warn(`❌ Refresh failed. Reason: ${errorType}`);
+            if (typeof window !== 'undefined') {
+                window.location.href = `/signin?error=${errorType}`;
+            }
+            throw new Error('Unauthorized');
+        }
+        console.log('✅ Refresh successful.');
+    }).finally(() => {
+        refreshPromise = null;
+    });
+
+    return refreshPromise;
+}
+
+// ─── Core fetch ───────────────────────────────────────────────────────────────
 
 export async function apiFetch<T = unknown>(
     endpoint: string,
@@ -51,7 +93,6 @@ export async function apiFetch<T = unknown>(
     const baseUrl = getApiBaseUrl();
     const url = buildUrl(`${baseUrl}${endpoint}`, params);
 
-    // 1. Prepare Request
     const xsrfToken = getCookie('XSRF-TOKEN');
     const finalHeaders = new Headers(headers as Record<string, string>);
     finalHeaders.set('Content-Type', 'application/json');
@@ -59,6 +100,11 @@ export async function apiFetch<T = unknown>(
     if (xsrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
         finalHeaders.set('X-XSRF-TOKEN', xsrfToken);
     }
+
+    const isAuthEndpoint =
+        endpoint.includes('/auth/public/refresh') ||
+        endpoint.includes('/auth/public/signin') ||
+        endpoint.includes('/auth/refresh');
 
     try {
         let response = await fetch(url, {
@@ -69,59 +115,26 @@ export async function apiFetch<T = unknown>(
             body: body ? JSON.stringify(body) : undefined,
         });
 
-        // 2. INTERCEPT 401: Handle JWT Expiration
-        // Don't retry if we are already trying to refresh or sign in
-        const isAuthRequest = endpoint.includes('/auth/public/refresh') || endpoint.includes('/auth/public/signin');
+        // ── Handle 401: attempt singleton refresh then retry once ─────────
+        if (response.status === 401 && !isAuthEndpoint) {
+            console.log('🔄 JWT expired, queuing refresh…');
 
-        if (response.status === 401 && !isAuthRequest) {
-            console.log('🔄 JWT Expired, attempting automatic refresh...');
+            await attemptRefresh(baseUrl);
 
-            // Call your Next.js BFF refresh route
-            const refreshResponse = await fetch(`${baseUrl}/auth/refresh`, {
-                method: 'POST',
-                credentials: 'include',
-            });
-
-            if (refreshResponse.ok) {
-                console.log('✅ Refresh successful, retrying original request.');
-
-                // Re-read the NEW XSRF token issued during refresh
-                const newXsrfToken = getCookie('XSRF-TOKEN');
-                if (newXsrfToken) {
-                    finalHeaders.set('X-XSRF-TOKEN', newXsrfToken);
-                }
-
-                // Retry the original fetch
-                response = await fetch(url, {
-                    ...fetchOptions,
-                    method,
-                    headers: finalHeaders,
-                    credentials: 'include',
-                    body: body ? JSON.stringify(body) : undefined,
-                });
-            } else {
-                // 1. Try to parse the error body to see WHY it failed
-                let errorType = 'session_expired'; // Default fallback
-
-                try {
-                    const errorData = await refreshResponse.json();
-                    // If your Spring Boot GlobalExceptionHandler sends the message, use it
-                    if (errorData.message) {
-                        errorType = errorData.message.toLowerCase();
-                        // This will be 'session_displaced', 'session_reused', etc.
-                    }
-                } catch (_) { // Changed 'e' to '_'
-                    console.warn('Could not parse refresh error body, using default.');
-                }
-                console.warn(`❌ Refresh failed. Reason: ${errorType}`);
-
-                if (typeof window !== 'undefined') {
-                    // 2. Pass the specific enum-like string to the URL
-                    window.location.href = `/signin?error=${errorType}`;
-                }
-
-                throw new Error('Unauthorized');
+            // Re-read the new XSRF token issued during refresh
+            const newXsrfToken = getCookie('XSRF-TOKEN');
+            if (newXsrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+                finalHeaders.set('X-XSRF-TOKEN', newXsrfToken);
             }
+
+            // Retry the original request once
+            response = await fetch(url, {
+                ...fetchOptions,
+                method,
+                headers: finalHeaders,
+                credentials: 'include',
+                body: body ? JSON.stringify(body) : undefined,
+            });
         }
 
         return await parseResponse<T>(response);
@@ -131,9 +144,9 @@ export async function apiFetch<T = unknown>(
     }
 }
 
+// ─── Response parser ──────────────────────────────────────────────────────────
 
 async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
-    // Handle 204 No Content
     if (response.status === 204) {
         return {
             success: true,
@@ -145,7 +158,6 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
 
     const contentType = response.headers.get('content-type');
 
-    // Handle non-JSON responses (like file downloads)
     if (contentType && !contentType.includes('application/json')) {
         if (response.ok) {
             return {
@@ -157,7 +169,6 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
         }
     }
 
-    // Parse JSON response
     let data: ServerResponse<T>;
     try {
         data = await response.json();
@@ -169,9 +180,7 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
         );
     }
 
-    // Throw error if response is not ok
     if (!response.ok || !data.success) {
-        // Add statusCode to error if not present
         const error = data as ApiErrorResponse<T>;
         if (!('statusCode' in error)) {
             (error as ApiErrorResponse<T>).statusCode = response.status;
@@ -182,9 +191,9 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
     return data as ApiResponse<T>;
 }
 
+// ─── API surface ──────────────────────────────────────────────────────────────
 
 export const api = {
-    // Client-side methods (call Next.js API routes)
     client: {
         get: <T = unknown>(
             endpoint: string,
@@ -204,6 +213,4 @@ export const api = {
         delete: <T = unknown>(endpoint: string): Promise<ApiResponse<T>> =>
             apiFetch<T>(endpoint, 'DELETE'),
     },
-
-
 };

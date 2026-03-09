@@ -27,7 +27,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
   );
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-gs-line">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-3 sm:px-4 py-2.5 border-t border-gs-line">
       {/* Result range */}
       <p className="text-xs text-t3 order-2 sm:order-1">
         {pagination.totalElements === 0

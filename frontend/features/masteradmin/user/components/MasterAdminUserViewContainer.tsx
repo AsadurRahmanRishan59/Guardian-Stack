@@ -18,7 +18,7 @@ export function AdminUserViewContainer() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* ── Page header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

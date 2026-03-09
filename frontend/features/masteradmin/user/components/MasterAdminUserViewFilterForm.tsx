@@ -66,6 +66,9 @@ export const MasterAdminUserViewFilterForm: FC<MasterAdminUserViewFilterFormProp
     },
   });
 
+  // Stringify to get a stable dep — the object ref changes every render in the parent
+  const defaultValuesKey = JSON.stringify(defaultValues);
+
   useEffect(() => {
     form.reset({
       page: 0,
@@ -74,7 +77,8 @@ export const MasterAdminUserViewFilterForm: FC<MasterAdminUserViewFilterFormProp
       sortDirection: "asc",
       ...defaultValues,
     });
-  }, [defaultValues, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultValuesKey]);
 
   const handleSubmit = (data: MasterAdminUserViewFilterFormData) => {
     onSubmit({

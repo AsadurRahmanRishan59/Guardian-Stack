@@ -52,7 +52,7 @@ export function TableControls<T>({
 }: TableControlsProps<T>) {
   return (
     <Card className="border-gs-line bg-surface-card shadow-none">
-      <CardContent className="p-3 sm:p-4">
+      <CardContent className="p-2 sm:p-3">
         {/* Controls row */}
         <div className="flex gap-2 items-center">
           <TableSearch
