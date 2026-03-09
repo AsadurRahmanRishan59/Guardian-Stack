@@ -30,6 +30,23 @@ export interface NavigationSection {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export const navigationConfig: NavigationSection[] = [
+  
+  // ── Dashboard Section (Top Level) ───────────────────────────────────
+  {
+    parentName: "Dashboard", // This acts as the section header/label
+    roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN, AppRole.USER],
+    navMain: [
+      {
+        title: "Dashboard",
+        url: "/dashboard", // Direct path
+        icon: BarChart3,    // or LayoutDashboard
+        roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN, AppRole.USER],
+        // No 'items' property = No Chevron/Dropdown
+      },
+    ],
+  },
+
+  // ── Admin Section ───────────────────────────────────────────────────
   {
     parentName: "Admin",
     roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
@@ -55,9 +72,9 @@ export const navigationConfig: NavigationSection[] = [
                 icon: Car,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table",    url: "/admin/master-data/tariffs/motor/rate-table",    icon: BarChart3,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Policy Terms",  url: "/admin/master-data/tariffs/motor/policy-terms",  icon: FileText,   roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Configuration", url: "/admin/master-data/tariffs/motor/config",         icon: Settings2,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/motor/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Policy Terms", url: "/admin/master-data/tariffs/motor/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Configuration", url: "/admin/master-data/tariffs/motor/config", icon: Settings2, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],
               },
               {
@@ -66,8 +83,8 @@ export const navigationConfig: NavigationSection[] = [
                 icon: Globe,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table",   url: "/admin/master-data/tariffs/overseas/rate-table",   icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Policy Terms", url: "/admin/master-data/tariffs/overseas/policy-terms", icon: FileText,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/overseas/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Policy Terms", url: "/admin/master-data/tariffs/overseas/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],
               },
               {
@@ -76,8 +93,8 @@ export const navigationConfig: NavigationSection[] = [
                 icon: HeartPulse,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table",   url: "/admin/master-data/tariffs/health/rate-table",   icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Policy Terms", url: "/admin/master-data/tariffs/health/policy-terms", icon: FileText,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/health/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Policy Terms", url: "/admin/master-data/tariffs/health/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],
               },
               {
@@ -86,8 +103,8 @@ export const navigationConfig: NavigationSection[] = [
                 icon: Home,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table",   url: "/admin/master-data/tariffs/home/rate-table",   icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Policy Terms", url: "/admin/master-data/tariffs/home/policy-terms", icon: FileText,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/home/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Policy Terms", url: "/admin/master-data/tariffs/home/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],
               },
               {
@@ -96,8 +113,8 @@ export const navigationConfig: NavigationSection[] = [
                 icon: Shield,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table",   url: "/admin/master-data/tariffs/life/rate-table",   icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Policy Terms", url: "/admin/master-data/tariffs/life/policy-terms", icon: FileText,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/life/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Policy Terms", url: "/admin/master-data/tariffs/life/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],
               },
               {
@@ -106,8 +123,8 @@ export const navigationConfig: NavigationSection[] = [
                 icon: Briefcase,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table",   url: "/admin/master-data/tariffs/sme/rate-table",   icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-                  { title: "Policy Terms", url: "/admin/master-data/tariffs/sme/policy-terms", icon: FileText,  roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/sme/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Policy Terms", url: "/admin/master-data/tariffs/sme/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],
               },
             ],
@@ -136,8 +153,8 @@ export const navigationConfig: NavigationSection[] = [
         isActive: true,
         roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
         items: [
-          { title: "User Log",   url: "/admin/audit/user-log",   icon: ScrollText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-          { title: "Login Log",  url: "/admin/audit/login-log",  icon: LogIn,       roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+          { title: "User Log", url: "/admin/audit/user-log", icon: ScrollText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+          { title: "Login Log", url: "/admin/audit/login-log", icon: LogIn, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
         ],
       },
     ],

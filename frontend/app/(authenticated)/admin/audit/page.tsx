@@ -1,148 +1,68 @@
 "use client";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Guardian Stack — Master Admin Forensic Audit Console
-// Redesigned with shadcn/ui + Tailwind dark mode + extracted components
-// ─────────────────────────────────────────────────────────────────────────────
+// app/admin/audit/page.tsx — Sub-module selection for Audit
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { ScrollText, LogIn } from "lucide-react";
 
-import { useState, useCallback, useMemo } from "react";
-import {
-  useTimelineItems,
-  useRevisionDetail,
-} from "@/features/masteradmin/audit/user/user.react.query";
-import type {
-  AuditFilterRequest,
-  AuditTimelineItemDTO,
-} from "@/features/masteradmin/audit/user/user.types";
-import { TopBar } from "@/features/masteradmin/audit/user/components/TopBar";
-import { StatsStrip } from "@/features/masteradmin/audit/user/components/StatsStrip";
-import { FilterBar } from "@/features/masteradmin/audit/user/components/FilterBar";
-import { TimelineRail } from "@/features/masteradmin/audit/user/components/TimeLineRail";
-import { Inspector } from "@/features/masteradmin/audit/user/components/Inspector";
+const modules = [
+  {
+    title: "User Log",
+    icon: ScrollText,
+    href: "/admin/audit/user-log",
+    description: "Track system-wide changes and administrative actions.",
+  },
+  {
+    title: "Login Log",
+    icon: LogIn,
+    href: "/admin/audit/login-log",
+    description: "Review user authentication history and session attempts.",
+  },
+];
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const PAGE_SIZE = 50;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN PAGE
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function AuditUsersPage() {
-  const [filter, setFilter] = useState<AuditFilterRequest>({
-    page: 0,
-    size: PAGE_SIZE,
-  });
-  const [selectedItem, setSelectedItem] = useState<AuditTimelineItemDTO | null>(
-    null,
-  );
-  const [inspectorOpen, setInspectorOpen] = useState(false); // mobile: show inspector panel
-
-  const updateFilter = useCallback((patch: Partial<AuditFilterRequest>) => {
-    setFilter((prev) => ({ ...prev, ...patch, page: 0 }));
-    setSelectedItem(null);
-  }, []);
-
-  const { data: response, isLoading, isFetching } = useTimelineItems(filter);
-
-  // ✅ Reads from actual API shape: { data: [...], pagination: { ... } }
-  const items = response?.data ?? [];
-  const totalElements = response?.pagination?.totalElements ?? 0;
-  const totalPages = response?.pagination?.totalPages ?? 0;
-
-  const stats = useMemo(
-    () => ({
-      total: totalElements,
-      critical: items.filter((i) => i.accountLocked || !i.enabled).length,
-      escalations: items.filter((i) => i.hasAdminRoleEscalation).length,
-      unknown: items.filter((i) => !isKnownIP(i.ipAddress)).length,
-    }),
-    [items, totalElements],
-  );
-
-  const handleSelectItem = useCallback((item: AuditTimelineItemDTO) => {
-    setSelectedItem((prev) =>
-      prev?.revisionNumber === item.revisionNumber ? null : item,
-    );
-    setInspectorOpen(true);
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setFilter({ page: 0, size: PAGE_SIZE });
-    setSelectedItem(null);
-  }, []);
-
-  const hasActiveFilters = !!(
-    filter.email ||
-    filter.changedBy ||
-    filter.ipAddress ||
-    filter.revisionTypes
-  );
-
+export default function AuditPage() {
   return (
-    <div className="flex h-screen flex-col bg-background font-sans overflow-hidden">
-      <TopBar isFetching={isFetching && !isLoading} />
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-head text-[28px] font-bold tracking-tight text-t1">Audit</h1>
+        <p className="text-[14px] text-t3 mt-1">Monitor system logs and track security events.</p>
+      </div>
 
-      <StatsStrip stats={stats} />
-
-      <FilterBar
-        filter={filter}
-        onUpdate={updateFilter}
-        onClear={clearFilters}
-        hasActiveFilters={hasActiveFilters}
-        totalElements={totalElements}
-        totalPages={totalPages}
-        onPageChange={(page) => setFilter((f) => ({ ...f, page }))}
-      />
-
-      {/* ── Main body ── */}
-      <div className="flex flex-1 overflow-hidden min-h-0 relative">
-        {/* LEFT RAIL — Timeline */}
-        <div
-          className={`
-            w-full md:w-3/5 overflow-y-auto border-r border-border
-            transition-transform duration-300
-            ${inspectorOpen ? "-translate-x-full md:translate-x-0 absolute md:relative inset-0" : ""}
-          `}
-        >
-          <TimelineRail
-            items={items}
-            isLoading={isLoading}
-            selectedItem={selectedItem}
-            onSelect={handleSelectItem}
-          />
-        </div>
-
-        {/* RIGHT RAIL — Inspector */}
-        <div
-          className={`
-            w-full md:w-2/5 overflow-y-auto bg-muted/20
-            transition-transform duration-300
-            ${inspectorOpen ? "translate-x-0 absolute md:relative inset-0" : "translate-x-full md:translate-x-0 absolute md:relative inset-0"}
-          `}
-        >
-          {/* Mobile back button */}
-          {inspectorOpen && (
-            <div className="sticky top-0 z-10 flex items-center gap-2 p-3 border-b border-border bg-background/95 backdrop-blur md:hidden">
-              <button
-                onClick={() => setInspectorOpen(false)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ← Back to timeline
-              </button>
-            </div>
-          )}
-          <Inspector selectedItem={selectedItem} />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {modules.map((mod, i) => {
+          const Icon = mod.icon;
+          return (
+            <motion.div
+              key={mod.title}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08, duration: 0.4 }}
+            >
+              <Link href={mod.href} className="block group" aria-label={`Open ${mod.title}`}>
+                <div className="
+                  relative p-5 rounded-gs overflow-hidden cursor-pointer
+                  bg-surface-card border border-gs-line/50
+                  shadow-[0_1px_4px_rgba(0,0,0,0.04)]
+                  transition-all duration-200
+                  hover:border-brand-border
+                  hover:shadow-[0_4px_20px_rgba(232,92,13,0.10)]
+                  hover:-translate-y-0.5
+                ">
+                  <div className="absolute inset-x-0 top-0 h-[2px] bg-brand rounded-t-gs opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <div className="mb-4 w-10 h-10 rounded-gs-sm bg-brand-soft border border-brand-border flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-brand" />
+                  </div>
+                  <div className="font-head text-[15px] font-bold tracking-tight text-t1 mb-1.5">{mod.title}</div>
+                  <p className="text-[13px] leading-[1.65] text-t3">{mod.description}</p>
+                  <div className="mt-4 text-[12px] font-semibold text-brand opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    Open →
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
-}
-
-// ─── Helpers (shared across this module) ─────────────────────────────────────
-
-export const TRUSTED_IP_PREFIXES = ["192.168.", "10.0.", "172.16."];
-
-export function isKnownIP(ip: string) {
-  return TRUSTED_IP_PREFIXES.some((p) => ip?.startsWith(p));
 }
