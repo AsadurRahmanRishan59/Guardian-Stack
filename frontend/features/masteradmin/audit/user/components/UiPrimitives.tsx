@@ -4,8 +4,7 @@ import { cn } from "@/lib/utils";
 import { AppRole } from "@/types/auth.types";
 import { AlertTriangle } from "lucide-react";
 
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TRUSTED_IP_PREFIXES = ["192.168.", "10.0.", "172.16."];
 
@@ -22,19 +21,20 @@ export function formatTs(iso: string) {
   };
 }
 
-// ─── RevBadge ────────────────────────────────────────────────────────────────
+// ─── RevBadge ─────────────────────────────────────────────────────────────────
 
 export const REV_CFG = {
-  CREATED:  { label: "ADD", icon: "+",  className: "text-green-400 bg-green-400/10 border-green-400/30" },
-  MODIFIED: { label: "MOD", icon: "✎", className: "text-blue-400  bg-blue-400/10  border-blue-400/30"  },
-  DELETED:  { label: "DEL", icon: "🗑", className: "text-red-400   bg-red-400/10   border-red-400/30"   },
+  CREATED:  { label: "ADD", icon: "+",  className: "text-gs-green    bg-gs-green-bg      border-gs-green/30"    },
+  MODIFIED: { label: "MOD", icon: "✎", className: "text-brand       bg-brand-soft       border-brand-border"   },
+  DELETED:  { label: "DEL", icon: "✕",  className: "text-destructive  bg-destructive/10  border-destructive/25" },
 } as const;
 
 export function RevBadge({ type }: { type: string }) {
   const cfg = REV_CFG[type as keyof typeof REV_CFG] ?? REV_CFG.MODIFIED;
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono border tracking-wide",
+      "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-gs-sm border",
+      "text-[10px] font-bold font-body tracking-wide",
       cfg.className
     )}>
       {cfg.icon} {cfg.label}
@@ -42,44 +42,38 @@ export function RevBadge({ type }: { type: string }) {
   );
 }
 
-// ─── IPLabel ─────────────────────────────────────────────────────────────────
+// ─── IPLabel ──────────────────────────────────────────────────────────────────
 
 export function IPLabel({ ip }: { ip: string }) {
   const known = isKnownIP(ip);
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 font-mono text-[11px]",
-      known ? "text-muted-foreground" : "text-orange-400"
+      "inline-flex items-center gap-1 font-body text-[11px]",
+      known ? "text-t3" : "text-brand"
     )}>
-      {!known && <AlertTriangle className="h-3 w-3" />}
+      {!known && <AlertTriangle className="h-3 w-3 shrink-0" />}
       {ip}
-      {!known && <span className="text-[9px] text-orange-400/50 font-bold tracking-wider">EXTERNAL</span>}
+      {!known && (
+        <span className="text-[9px] font-bold tracking-wider text-brand/60">EXTERNAL</span>
+      )}
     </span>
   );
 }
 
-// ─── RolePill ────────────────────────────────────────────────────────────────
-//
-// Variant map aligned with AppRole enum:
-//   ROLE_MASTER_ADMIN → "master"   red/rose  (highest privilege, most critical)
-//   ROLE_ADMIN        → "admin"    amber     (elevated privilege)
-//   ROLE_EMPLOYEE     → "employee" blue      (internal staff)
-//   ROLE_USER         → "user"     slate     (standard user)
-//   fallback          → "neutral"  muted
+// ─── RolePill ─────────────────────────────────────────────────────────────────
 
 export type RoleVariant = "neutral" | "added" | "removed" | "master" | "admin" | "employee" | "user";
 
 const ROLE_STYLES: Record<RoleVariant, string> = {
-  neutral:  "text-muted-foreground  bg-muted/60         border-border",
-  added:    "text-green-400         bg-green-400/10     border-green-400/30",
-  removed:  "text-red-400           bg-red-400/10       border-red-400/25",
-  master:   "text-rose-400          bg-rose-400/10      border-rose-400/35",
-  admin:    "text-amber-400         bg-amber-400/10     border-amber-400/35",
-  employee: "text-blue-400          bg-blue-400/10      border-blue-400/30",
-  user:     "text-slate-400         bg-slate-400/10     border-slate-400/25",
+  neutral:  "text-t3          bg-surface-3        border-gs-line",
+  added:    "text-gs-green    bg-gs-green-bg      border-gs-green/30",
+  removed:  "text-destructive bg-destructive/10   border-destructive/25",
+  master:   "text-brand       bg-brand-soft       border-brand-border",
+  admin:    "text-brand       bg-brand-soft/60    border-brand-border/60",
+  employee: "text-t2          bg-surface-3        border-gs-line-2",
+  user:     "text-t3          bg-surface-2        border-gs-line",
 };
 
-/** Derive the display variant from the raw role string. */
 export function getRoleVariant(role: string): RoleVariant {
   switch (role) {
     case AppRole.MASTER_ADMIN: return "master";
@@ -90,19 +84,13 @@ export function getRoleVariant(role: string): RoleVariant {
   }
 }
 
-export function RolePill({
-  role,
-  variant,
-}: {
-  role: string;
-  /** If omitted, variant is derived automatically from the role string. */
-  variant?: RoleVariant;
-}) {
-  const resolvedVariant = variant ?? getRoleVariant(role);
+export function RolePill({ role, variant }: { role: string; variant?: RoleVariant }) {
+  const v = variant ?? getRoleVariant(role);
   return (
     <span className={cn(
-      "inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold border mx-0.5 my-0.5",
-      ROLE_STYLES[resolvedVariant]
+      "inline-block px-1.5 py-0.5 rounded-gs-sm border mx-0.5 my-0.5",
+      "text-[10px] font-body font-semibold",
+      ROLE_STYLES[v]
     )}>
       {role.replace("ROLE_", "")}
     </span>

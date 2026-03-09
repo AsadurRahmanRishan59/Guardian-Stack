@@ -8,7 +8,7 @@ import { RolePill, getRoleVariant } from "./UiPrimitives";
 import type { AuditDiffDTO, DiffField } from "@/features/masteradmin/audit/user/user.types";
 
 interface DiffTableProps {
-  diff: AuditDiffDTO;
+  diff:            AuditDiffDTO;
   currentRevision: number;
 }
 
@@ -21,12 +21,11 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
     if (field.fieldType === "ROLES") {
       const roles = val.split(",").map((r) => r.trim()).filter(Boolean);
       if (roles.length === 0)
-        return <span className="text-[11px] text-muted-foreground/40">none</span>;
+        return <span className="font-body text-[11px] text-t4">none</span>;
       return (
         <span className="flex flex-wrap">
           {roles.map((r) => {
-            // Diff-aware: added/removed takes priority; otherwise derive from role type
-            if (isNew  && diff.addedRoles.includes(r))   return <RolePill key={r} role={r} variant="added"   />;
+            if ( isNew && diff.addedRoles.includes(r))   return <RolePill key={r} role={r} variant="added"   />;
             if (!isNew && diff.removedRoles.includes(r)) return <RolePill key={r} role={r} variant="removed" />;
             return <RolePill key={r} role={r} />;
           })}
@@ -35,19 +34,17 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
     }
 
     if (field.fieldType === "BOOLEAN") {
-      const color =
-        val === "true"
-          ? "text-green-400"
-          : val === "false"
-          ? "text-red-400"
-          : "text-muted-foreground";
+      const cls =
+        val === "true"  ? "text-gs-green" :
+        val === "false" ? "text-destructive" :
+                          "text-t4";
       return (
-        <span className={cn("font-mono text-xs font-semibold", color)}>{val}</span>
+        <span className={cn("font-body text-xs font-semibold", cls)}>{val}</span>
       );
     }
 
     return (
-      <span className="text-xs text-foreground/70">{val || "—"}</span>
+      <span className="font-body text-xs text-t2">{val || "—"}</span>
     );
   };
 
@@ -55,38 +52,42 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
     <tr
       key={f.fieldName}
       className={cn(
-        "border-b border-border/50",
-        f.critical && isChanged && "bg-red-500/[0.03]",
-        f.fieldName === "roles" && isChanged && diff.adminEscalation && "bg-amber-400/[0.03]"
+        "border-b border-gs-line/50",
+        f.critical && isChanged               && "bg-destructive/[0.03]",
+        f.fieldName === "roles" && isChanged
+          && diff.adminEscalation             && "bg-brand/[0.03]",
       )}
     >
-      {/* Field name */}
+      {/* Field label */}
       <td className="px-3 py-2 whitespace-nowrap">
-        <span className="text-[10px] font-semibold font-mono text-muted-foreground/70">
+        <span className="font-body text-[10px] font-semibold text-t4">
           {f.critical && <span className="mr-1 text-[9px]">⚡</span>}
           {f.fieldLabel}
         </span>
       </td>
 
       {/* Previous value */}
-      <td className="px-3 py-2 text-muted-foreground/50">
+      <td className="px-3 py-2 text-t4">
         {renderValue(f, false)}
       </td>
 
-      {/* New value + changed indicator */}
+      {/* New value + changed chip */}
       <td className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {renderValue(f, true)}
           {isChanged && (
-            <span className="text-[9px] font-bold tracking-wider px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <span className={cn(
+              "text-[9px] font-bold tracking-wider px-1 py-0.5 rounded-gs-sm border",
+              "bg-brand-soft border-brand-border text-brand",
+            )}>
               ΔCHANGED
             </span>
           )}
           {f.fieldName === "roles" && diff.adminEscalation && (
-            <span className="text-xs">👑</span>
+            <span className="text-xs leading-none">👑</span>
           )}
           {f.critical && isChanged && (
-            <span className="text-xs">🚩</span>
+            <span className="text-xs leading-none">🚩</span>
           )}
         </div>
       </td>
@@ -96,7 +97,7 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
   return (
     <div>
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-xs font-mono">
+        <table className="w-full border-collapse">
           <thead>
             <tr>
               {[
@@ -106,7 +107,7 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
               ].map((h) => (
                 <th
                   key={h}
-                  className="text-left px-3 py-2 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/40 border-b border-border whitespace-nowrap"
+                  className="text-left px-3 py-2 border-b border-gs-line whitespace-nowrap font-body text-[10px] font-bold tracking-widest uppercase text-t4"
                 >
                   {h}
                 </th>
@@ -114,7 +115,7 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
             </tr>
           </thead>
           <tbody>
-            {diff.changedFields.map((f) => renderRow(f, true))}
+            {diff.changedFields.map((f)   => renderRow(f, true))}
             {showUnchanged && diff.unchangedFields.map((f) => renderRow(f, false))}
           </tbody>
         </table>
@@ -124,14 +125,16 @@ export function DiffTable({ diff, currentRevision }: DiffTableProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="w-full rounded-none rounded-b-lg border-t border-border text-[11px] text-muted-foreground/50 h-8 font-mono"
+          className={cn(
+            "w-full rounded-none rounded-b-gs border-t border-gs-line",
+            "font-body text-[11px] text-t4 h-8 hover:text-t2 hover:bg-surface-2",
+          )}
           onClick={() => setShowUnchanged((v) => !v)}
         >
-          {showUnchanged ? (
-            <ChevronUp className="h-3 w-3 mr-1" />
-          ) : (
-            <ChevronDown className="h-3 w-3 mr-1" />
-          )}
+          {showUnchanged
+            ? <ChevronUp   className="h-3 w-3 mr-1" />
+            : <ChevronDown className="h-3 w-3 mr-1" />
+          }
           {showUnchanged ? "Hide" : "Show"} {diff.unchangedFields.length} unchanged fields
         </Button>
       )}
