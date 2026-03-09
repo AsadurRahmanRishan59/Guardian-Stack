@@ -4,6 +4,7 @@ import com.rishan.guardianstack.core.exception.DuplicateResourceException;
 import com.rishan.guardianstack.core.exception.ResourceNotFoundException;
 import com.rishan.guardianstack.core.response.PaginatedResponse;
 import com.rishan.guardianstack.tariff.motor.dto.MotorTariffDTO;
+import com.rishan.guardianstack.tariff.motor.dto.MotorTariffFullDTO;
 import com.rishan.guardianstack.tariff.motor.dto.MotorTariffMasterAdminViewSearchCriteria;
 import com.rishan.guardianstack.tariff.motor.dto.MotorTariffShortView;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.transaction.annotation.Transactional;
 
 
 @Service
@@ -60,7 +62,7 @@ public class MotorTariffService {
     }
 
     // Get an motorTariff by tariffKey
-    public MotorTariffDTO getMotorTariffById(Long tariffKey) {
+    public MotorTariffDTO getMotorTariffById(Integer tariffKey) {
         MotorTariff motorTariff = motorTariffRepository.findById(tariffKey)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "MotorTariff not found with ID: " + tariffKey));
@@ -68,76 +70,62 @@ public class MotorTariffService {
         return mapper.toMotorTariffDTO(motorTariff);
     }
 
-    // Create an motorTariff
-    public Long createMotorTariff(MotorTariffDTO dto) {
-
-        String tariffType = dto.tariffType();
-        String groupOfVehicle = dto.groupOfVehicle();
-        String typeOfVehicle = dto.typeOfVehicle();
-        String category = dto.category();
-
-        Optional<MotorTariff> existMotorTariff = motorTariffRepository
-                .findByTariffTypeAndGroupOfVehicleAndTypeOfVehicleAndCategory(tariffType,
-                        groupOfVehicle, typeOfVehicle,
-                        category);
-        if (existMotorTariff.isPresent()) {
-            throw new DuplicateResourceException("typeOfVehicle",
-                    "Motor Tariff already exist by ID: " + existMotorTariff.get().getTariffKey());
-        }
-
-        // if()
-
-        MotorTariff motorTariff = motorTariffRepository.save(mapper.toMotorTariff(dto));
-        return mapper.toMotorTariffDTO(motorTariff).tariffKey();
+    public MotorTariffFullDTO getFullMotorTariffById(Integer tariffKey) {
+        MotorTariff motorTariff = motorTariffRepository.findById(tariffKey)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "MotorTariff not found with ID: " + tariffKey));
+        return mapper.toMotorTariffFullDTO(motorTariff);
     }
 
-    // Update an motorTariff by tariffKey
-    public MotorTariffResponseDTO updateMotorTariff(Integer motorTariffKey, MotorTariffRequestDTO dto) {
+    /**
+     * Create a new Motor Tariff.
+     * Checks for uniqueness against the composite key (Type, Group, Vehicle, Category).
+     */
+    @Transactional
+    public MotorTariffDTO createMotorTariff(MotorTariffDTO dto) {
 
-        // 1. FETCH EXISTING Motor Tariff
-        MotorTariff existingMotorTariff = motorTariffRepository.findById(motorTariffKey)
-                .orElseThrow(
-                        () -> new ResourceNotFoundException(
-                                "MotorTariff not found with ID: " + motorTariffKey));
-
-        // 2. Check if another record exists with the new values (excluding current
-        // record)
-        Optional<MotorTariff> duplicate = motorTariffRepository
-                .findByTariffTypeAndGroupOfVehicleAndTypeOfVehicleAndCategory(
-                        dto.tariffType(),
-                        dto.groupOfVehicle(),
-                        dto.typeOfVehicle(),
-                        dto.category());
-
-        // 3. If duplicate exists AND it's not the same record we're updating
-        if (duplicate.isPresent() && !duplicate.get().getTariffKey().equals(motorTariffKey)) {
+        motorTariffRepository.findByTariffTypeAndGroupOfVehicleAndTypeOfVehicleAndCategory(
+                dto.tariffType(),
+                dto.groupOfVehicle(),
+                dto.typeOfVehicle(),
+                dto.category()
+        ).ifPresent(existing -> {
             throw new DuplicateResourceException("typeOfVehicle",
-                    "MotorTariff with these attributes already exists with ID: "
-                            + duplicate.get().getTariffKey());
-        }
+                    "Motor Tariff already exists with ID: " + existing.getTariffKey());
+        });
 
-        // 2. MAP AND SAVE UPDATED AGENT
-        MotorTariff updatedMotorTariff = mapper.toUpdatedMotorTariff(existingMotorTariff, dto);
-        MotorTariff savedMotorTariff = motorTariffRepository.save(updatedMotorTariff);
+        MotorTariff motorTariff = mapper.toMotorTariff(dto);
+        MotorTariff savedTariff = motorTariffRepository.save(motorTariff);
 
-        return mapper.toMotorTariffResponseDTO(savedMotorTariff);
-
+        return mapper.toMotorTariffDTO(savedTariff);
     }
 
-    // Update an motorTariff by tariffKey
-    public MotorTariffResponseDTO updateMotorTariffRates(Integer motorTariffKey,
-                                                         MotorTariffUpdateRateRequestDTO dto) {
-        // 1. FETCH EXISTING Motor Tariff
-        MotorTariff existingMotorTariff = motorTariffRepository.findById(motorTariffKey)
-                .orElseThrow(
-                        () -> new ResourceNotFoundException(
-                                "MotorTariff not found with ID: " + motorTariffKey));
+    /**
+     * Update an existing Motor Tariff.
+     * Ensures that the updated combination doesn't clash with another record.
+     */
+    @Transactional
+    public MotorTariffDTO updateMotorTariff(Integer tariffKey, MotorTariffDTO dto) {
 
-        // 2. UPDATE ONLY THE RATES using your existing method
-        MotorTariff updatedMotorTariff = mapper.toUpdatedMotorTariffRate(existingMotorTariff, dto);
-        MotorTariff savedMotorTariff = motorTariffRepository.save(updatedMotorTariff);
+        MotorTariff existingTariff = motorTariffRepository.findById(tariffKey)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "MotorTariff not found with ID: " + tariffKey));
 
-        return mapper.toMotorTariffResponseDTO(savedMotorTariff);
+        motorTariffRepository.findByTariffTypeAndGroupOfVehicleAndTypeOfVehicleAndCategory(
+                dto.tariffType(),
+                dto.groupOfVehicle(),
+                dto.typeOfVehicle(),
+                dto.category()
+        ).ifPresent(matched -> {
+            if (!matched.getTariffKey().equals(tariffKey)) {
+                throw new DuplicateResourceException("typeOfVehicle",
+                        "This vehicle/category combination is already assigned to Tariff ID: " + matched.getTariffKey());
+            }
+        });
+
+        mapper.toUpdatedMotorTariff(existingTariff, dto);
+        MotorTariff updatedTariff = motorTariffRepository.save(existingTariff);
+        return mapper.toMotorTariffDTO(updatedTariff);
     }
 
     // Delete a motor tariff by tariffKey
@@ -151,7 +139,11 @@ public class MotorTariffService {
     public List<String> getHierarchy(String level, String tariffType, String groupOfVehicle, String typeOfVehicle) {
         MotorHierarchyLevel hLevel = MotorHierarchyLevel.fromString(level);
 
-        List<String> result = switch (hLevel) {
+        // fallback
+        // to tons
+        // if no CC
+
+        return switch (hLevel) {
             case TARIFF_TYPE -> motorTariffRepository.findDistinctTariffTypes();
             case GROUP_OF_VEHICLE -> motorTariffRepository.findDistinctGroupOfVehicles(tariffType);
             case TYPE_OF_VEHICLE -> motorTariffRepository.findDistinctTypeOfVehicle(tariffType, groupOfVehicle);
@@ -171,10 +163,9 @@ public class MotorTariffService {
                 yield categories;
             }
 
+
             default -> throw new IllegalArgumentException("Invalid level: " + level);
         };
-
-        return result;
     }
 
     // Helper method to create Sort object

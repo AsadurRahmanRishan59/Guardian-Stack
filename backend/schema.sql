@@ -682,9 +682,9 @@ CREATE TABLE gs_motor_tariff
 
 CREATE TABLE gs_motor_tariff_aud
 (
-    tariff_key       INTEGER NOT NULL,
-    rev              INTEGER NOT NULL REFERENCES revinfo (rev), -- Links to the revision metadata
-    revtype          SMALLINT,                                  -- 0 (ADD), 1 (MOD), 2 (DEL)
+    tariff_key       INTEGER     NOT NULL,
+    rev              BIGINT      NOT NULL REFERENCES revinfo (rev), -- Links to the revision metadata
+    revtype          SMALLINT,                                      -- 0 (ADD), 1 (MOD), 2 (DEL)
 
     tariff_type      VARCHAR(50),
     group_of_vehicle VARCHAR(500),
@@ -699,6 +699,14 @@ CREATE TABLE gs_motor_tariff_aud
     cyclone          NUMERIC(5, 2),
     earthquake       NUMERIC(5, 2),
     is_active        BOOLEAN,
+
+    -- JPA AUDITING (Track when metadata changed)
+
+    created_at       TIMESTAMP   NULL,
+    updated_at       TIMESTAMP   NULL,
+    created_by       VARCHAR(50) NULL,
+    updated_by       VARCHAR(50) NULL,
+    version          BIGINT      NULL,
 
     PRIMARY KEY (tariff_key, rev)
 );

@@ -1,6 +1,7 @@
 package com.rishan.guardianstack.tariff.motor;
 
 import com.rishan.guardianstack.tariff.motor.dto.MotorTariffDTO;
+import com.rishan.guardianstack.tariff.motor.dto.MotorTariffFullDTO;
 import com.rishan.guardianstack.tariff.motor.dto.MotorTariffShortView;
 import org.springframework.stereotype.Component;
 
@@ -50,6 +51,32 @@ public final class MotorTariffMapper {
         );
     }
 
+    public MotorTariffFullDTO toMotorTariffFullDTO(MotorTariff entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        return new MotorTariffFullDTO(
+                entity.getTariffKey(),
+                entity.getTariffType(),
+                entity.getGroupOfVehicle(),
+                entity.getTypeOfVehicle(),
+                entity.getCategory(),
+                entity.getOwnDpBasic(),
+                entity.getFullInsValue(),
+                entity.getActLiability(),
+                entity.getFire(),
+                entity.getTheft(),
+                entity.getCyclone(),
+                entity.getEarthquake(),
+                entity.getIsActive(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt(),
+                entity.getCreatedBy(),
+                entity.getUpdatedBy()
+        );
+    }
+
     public MotorTariffShortView toMotorTariffShortView(MotorTariff entity) {
         if (entity == null) {
             return null;
@@ -68,11 +95,10 @@ public final class MotorTariffMapper {
         );
     }
 
-    public MotorTariff toUpdatedMotorTariff(MotorTariff entity, MotorTariffDTO requestDTO) {
+    public void toUpdatedMotorTariff(MotorTariff entity, MotorTariffDTO requestDTO) {
         if (entity == null || requestDTO == null) {
-            return entity;
+            return;
         }
-
         entity.setTariffType(requestDTO.tariffType());
         entity.setGroupOfVehicle(requestDTO.groupOfVehicle());
         entity.setTypeOfVehicle(requestDTO.typeOfVehicle());
@@ -88,7 +114,5 @@ public final class MotorTariffMapper {
         if (requestDTO.isActive() != null) {
             entity.setIsActive(requestDTO.isActive());
         }
-
-        return entity;
     }
 }

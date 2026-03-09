@@ -29,7 +29,7 @@ public class MotorTariff extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "tariff_key")
-    private Long tariffKey;
+    private Integer tariffKey;
 
     @NotBlank(message = "Tariff type is required (e.g., Private Vehicle, Motor Cycle)")
     @Size(max = 50, message = "Tariff type cannot exceed 50 characters")
