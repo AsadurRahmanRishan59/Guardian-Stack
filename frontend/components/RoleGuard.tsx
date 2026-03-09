@@ -1,15 +1,20 @@
-'use client';
+"use client";
 
-import { useHasRole } from '@/lib/utils/role-check';
-import { AppRole } from '@/types/auth.types';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+// components/RoleGuard.tsx
+//
+// ✅ Reads from UserContext — does NOT call useCurrentUser().
+// Role check is pure synchronous logic — no extra network requests.
+
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { AppRole } from "@/types/auth.types";
+import { useUser } from "@/app/(authenticated)/layout";
 
 interface RoleGuardProps {
-  children: React.ReactNode;
+  children:      React.ReactNode;
   requiredRoles: AppRole | AppRole[];
-  fallback?: React.ReactNode; // optional custom fallback
+  fallback?:     React.ReactNode;
 }
 
 export function RoleGuard({
@@ -17,40 +22,33 @@ export function RoleGuard({
   requiredRoles,
   fallback = null,
 }: RoleGuardProps) {
-  const router = useRouter();
-  const { hasRole, isLoading, error } = useHasRole(requiredRoles);
+  const router      = useRouter();
+  const { user, isLoading } = useUser(); // ← context, not useCurrentUser()
+  const redirecting = useRef(false);
 
-  // Redirect if user has no role
+  // Normalise to array
+  const required = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+
+  // Synchronous role check — no hook, no query
+  const hasRole = !!user?.roles?.some((r) => required.includes(r as AppRole));
+
   useEffect(() => {
-    if (!isLoading && !hasRole && !error) {
-      router.replace('/unauthorized'); // unauthorized page
+    if (isLoading) return;
+    if (user && !hasRole && !redirecting.current) {
+      redirecting.current = true;
+      router.replace("/unauthorized");
     }
-  }, [hasRole, isLoading, error, router]);
+  }, [user, hasRole, isLoading, router]);
 
-  // Loading placeholder (spinner)
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-50">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground dark:text-muted-foreground" />
+      <div className="flex items-center justify-center min-h-[200px]">
+        <Loader2 className="w-5 h-5 animate-spin text-t4" />
       </div>
     );
   }
 
-  // Show error if exists
-  if (error) {
-    return (
-      <div className="p-4 border rounded-md bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
-        <p className="font-semibold">Error:</p>
-        <p>{(error as Error).message || 'Something went wrong'}</p>
-      </div>
-    );
-  }
+  if (!user || !hasRole) return <>{fallback}</>;
 
-  // If user has role, render children
-  if (hasRole) {
-    return <>{children}</>;
-  }
-
-  // fallback if provided
-  return <>{fallback}</>;
+  return <>{children}</>;
 }

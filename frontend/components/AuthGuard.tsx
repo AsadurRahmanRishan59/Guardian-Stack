@@ -1,68 +1,46 @@
 "use client";
 
+// components/AuthGuard.tsx
+//
+// ✅ Reads from UserContext — does NOT call useCurrentUser().
+// The single useCurrentUser() call lives in authenticated-layout.tsx.
+
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { useCurrentUser } from "@/features/auth/auth.react.query";
+import { useUser } from "@/app/(authenticated)/layout";
 
 interface AuthGuardProps {
   children: React.ReactNode;
 }
 
 export default function AuthGuard({ children }: AuthGuardProps) {
-  const router = useRouter();
-  const { data: user, isLoading, isError, error } = useCurrentUser();
-
-  // Prevent multiple redirects on re-renders
+  const router      = useRouter();
+  const { user, isLoading } = useUser(); // ← context, not useCurrentUser()
   const redirecting = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
-
-    // If error OR no user → redirect
-    if (!user || isError) {
-      if (!redirecting.current) {
-        redirecting.current = true;
-        console.warn("🔒 AuthGuard: Not authenticated → redirect to /signin");
-        router.replace("/signin");
-      }
+    if (!user && !redirecting.current) {
+      redirecting.current = true;
+      router.replace("/signin");
     }
-  }, [user, isLoading, isError, router]);
+  }, [user, isLoading, router]);
 
-  // Loading placeholder (better looking)
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-center">
-        <Loader2 className="w-10 h-10 animate-spin text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground">Checking authentication…</p>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+        <div className="w-9 h-9 rounded-[10px] bg-brand flex items-center justify-center">
+          <svg viewBox="0 0 15 15" className="w-4 h-4 fill-white">
+            <path d="M7.5 1L2 3.5V8c0 3.3 2.4 5.8 5.5 6.5C10.6 13.8 13 11.3 13 8V3.5L7.5 1z" />
+          </svg>
+        </div>
+        <p className="text-[13px] font-medium text-t3">Checking authentication…</p>
       </div>
     );
   }
 
-  // Show error (session expired, token invalid, backend unreachable)
-  if (isError) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center text-center p-6">
-        <p className="text-red-600 dark:text-red-400 font-semibold mb-2">
-          Authentication Error
-        </p>
-        <p className="text-muted-foreground mb-4">
-          {(error as Error)?.message ??
-            "Failed to verify session. Please login again."}
-        </p>
-        <button
-          onClick={() => router.replace("/signin")}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-        >
-          Go to Login
-        </button>
-      </div>
-    );
-  }
-
-  // While redirecting, show nothing
   if (!user) return null;
 
-  // Authenticated → render content
   return <>{children}</>;
 }

@@ -1,123 +1,346 @@
+/* app/globals.css — all @import rules MUST be first (CSS spec + Turbopack) */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Sora:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
-@import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
+/* ══════════════════════════════════════════════════════════════════════════════
+   @theme — Tailwind v4 design system tokens
+   These become utility classes automatically:
+     --color-brand          →  bg-brand  text-brand  border-brand  etc.
+     --font-head            →  font-head
+     --radius-gs            →  rounded-gs
+     --animate-fade-up      →  animate-fade-up
+   ══════════════════════════════════════════════════════════════════════════════ */
+@theme {
+  /* ── Brand colours ─────────────────────────────────────────────────────── */
+  --color-brand:           var(--gs-orange);
+  --color-brand-hover:     var(--gs-orange-hover);
+  --color-brand-soft:      var(--gs-orange-soft);
+  --color-brand-border:    var(--gs-orange-border);
+  --color-brand-fg:        var(--gs-orange-fg);
+
+  /* ── Surface colours ───────────────────────────────────────────────────── */
+  --color-surface:         var(--gs-bg);
+  --color-surface-2:       var(--gs-bg-2);
+  --color-surface-3:       var(--gs-bg-3);
+  --color-surface-card:    var(--gs-card);
+
+  /* ── Text colours ──────────────────────────────────────────────────────── */
+  --color-t1:              var(--gs-t1);
+  --color-t2:              var(--gs-t2);
+  --color-t3:              var(--gs-t3);
+  --color-t4:              var(--gs-t4);
+
+  /* ── Border colours ────────────────────────────────────────────────────── */
+  --color-gs-line:         var(--gs-line);
+  --color-gs-line-2:       var(--gs-line-2);
+
+  /* ── Semantic colours ──────────────────────────────────────────────────── */
+  --color-gs-green:        var(--gs-green);
+  --color-gs-green-bg:     var(--gs-green-bg);
+
+  /* ── shadcn/ui token bridges ───────────────────────────────────────────── */
+  --color-background:      var(--background);
+  --color-foreground:      var(--foreground);
+  --color-primary:         var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
+  --color-secondary:       var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:           var(--muted);
+  --color-muted-foreground:var(--muted-foreground);
+  --color-accent:          var(--accent);
+  --color-accent-foreground:var(--accent-foreground);
+  --color-destructive:     var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border:          var(--border);
+  --color-input:           var(--input);
+  --color-ring:            var(--ring);
+  --color-card:            var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --color-popover:         var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-sidebar:                   var(--sidebar);
+  --color-sidebar-foreground:        var(--sidebar-foreground);
+  --color-sidebar-primary:           var(--sidebar-primary);
+  --color-sidebar-primary-foreground:var(--sidebar-primary-foreground);
+  --color-sidebar-accent:            var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border:            var(--sidebar-border);
+  --color-sidebar-ring:              var(--sidebar-ring);
+
+  /* ── Typography ────────────────────────────────────────────────────────── */
+  --font-head: 'Sora', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-sans: var(--font-body);            /* Tailwind's default font-sans */
+
+  /* ── Border radius ─────────────────────────────────────────────────────── */
+  --radius-gs:    0.625rem;                 /* 10px  → rounded-gs    */
+  --radius-gs-sm: 0.375rem;                 /* 6px   → rounded-gs-sm */
+  --radius:       var(--radius-gs);         /* shadcn default         */
+
+  /* ── Animations ────────────────────────────────────────────────────────── */
+  --animate-fade-up:    fade-up .35s ease both;
+  --animate-slide-down: slide-down .35s ease both;
+  --animate-pop-up:     pop-up .35s cubic-bezier(.34,1.3,.64,1) both;
+  --animate-spin-gs:    spin-gs .7s linear infinite;
+
+  /* keyframes */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-down {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pop-up {
+    from { opacity: 0; transform: scale(.97) translateY(12px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+  }
+  @keyframes spin-gs {
+    100% { transform: rotate(360deg); }
+  }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   CSS variables — runtime theming (light / dark)
+   These are the single source of truth.
+   @theme references them via var(--gs-*).
+   shadcn/ui uses the --background / --primary / --sidebar-* aliases below.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --radius: 0.75rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.795 0.184 86.047);
-  --primary-foreground: oklch(0.421 0.095 57.708);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.795 0.184 86.047);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.795 0.184 86.047);
-  --sidebar-primary-foreground: oklch(0.421 0.095 57.708);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.795 0.184 86.047);
-  --header-height: 56px;
+  /* Guardian Stack brand */
+  --gs-orange:           #E85C0D;
+  --gs-orange-hover:     #C94D0A;
+  --gs-orange-soft:      #FEF0E8;
+  --gs-orange-border:    #F9D0B4;
+  --gs-orange-fg:        #ffffff;
+
+  /* Surfaces */
+  --gs-bg:               #FAFAF9;
+  --gs-bg-2:             #F3F2EF;
+  --gs-bg-3:             #ECEAE5;
+  --gs-card:             #ffffff;
+
+  /* Text */
+  --gs-t1:               #111110;
+  --gs-t2:               #38352F;
+  --gs-t3:               #6A665E;
+  --gs-t4:               #A09A90;
+
+  /* Borders */
+  --gs-line:             #E4E1DB;
+  --gs-line-2:           #CCC9C2;
+
+  /* Semantic */
+  --gs-green:            #1B7A45;
+  --gs-green-bg:         #EBF6F1;
+
+  /* ── shadcn/ui aliases ─────────────────────────────────────────────────── */
+  --background:              var(--gs-bg);
+  --foreground:              var(--gs-t1);
+  --card:                    var(--gs-card);
+  --card-foreground:         var(--gs-t1);
+  --popover:                 var(--gs-card);
+  --popover-foreground:      var(--gs-t1);
+  --primary:                 var(--gs-orange);
+  --primary-foreground:      var(--gs-orange-fg);
+  --secondary:               var(--gs-bg-2);
+  --secondary-foreground:    var(--gs-t2);
+  --muted:                   var(--gs-bg-2);
+  --muted-foreground:        var(--gs-t3);
+  --accent:                  var(--gs-orange-soft);
+  --accent-foreground:       var(--gs-orange);
+  --destructive:             #DC2626;
+  --destructive-foreground:  #ffffff;
+  --border:                  var(--gs-line);
+  --input:                   var(--gs-line);
+  --ring:                    var(--gs-orange);
+  --sidebar:                      var(--gs-card);
+  --sidebar-foreground:           var(--gs-t2);
+  --sidebar-primary:              var(--gs-orange);
+  --sidebar-primary-foreground:   var(--gs-orange-fg);
+  --sidebar-accent:               var(--gs-orange-soft);
+  --sidebar-accent-foreground:    var(--gs-orange);
+  --sidebar-border:               var(--gs-line);
+  --sidebar-ring:                 var(--gs-orange);
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.795 0.184 86.047);
-  --primary-foreground: oklch(0.421 0.095 57.708);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.554 0.135 66.442);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.795 0.184 86.047);
-  --sidebar-primary-foreground: oklch(0.421 0.095 57.708);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.554 0.135 66.442);
+  --gs-orange:           #FF7432;
+  --gs-orange-hover:     #E85C0D;
+  --gs-orange-soft:      #2B1608;
+  --gs-orange-border:    #4A2510;
+  --gs-orange-fg:        #ffffff;
 
+  --gs-bg:               #0D0C0A;
+  --gs-bg-2:             #151410;
+  --gs-bg-3:             #1C1A16;
+  --gs-card:             #191714;
+
+  --gs-t1:               #F0EDE8;
+  --gs-t2:               #C2BDB5;
+  --gs-t3:               #857F77;
+  --gs-t4:               #524E48;
+
+  --gs-line:             #27241E;
+  --gs-line-2:           #35312A;
+
+  --gs-green:            #3DBA72;
+  --gs-green-bg:         #0D2119;
+
+  --background:              var(--gs-bg);
+  --foreground:              var(--gs-t1);
+  --card:                    var(--gs-card);
+  --card-foreground:         var(--gs-t1);
+  --popover:                 var(--gs-card);
+  --popover-foreground:      var(--gs-t1);
+  --primary:                 var(--gs-orange);
+  --primary-foreground:      var(--gs-orange-fg);
+  --secondary:               var(--gs-bg-2);
+  --secondary-foreground:    var(--gs-t2);
+  --muted:                   var(--gs-bg-3);
+  --muted-foreground:        var(--gs-t3);
+  --accent:                  var(--gs-orange-soft);
+  --accent-foreground:       var(--gs-orange);
+  --destructive:             #EF4444;
+  --destructive-foreground:  #ffffff;
+  --border:                  var(--gs-line);
+  --input:                   var(--gs-line);
+  --ring:                    var(--gs-orange);
+  --sidebar:                      var(--gs-card);
+  --sidebar-foreground:           var(--gs-t2);
+  --sidebar-primary:              var(--gs-orange);
+  --sidebar-primary-foreground:   var(--gs-orange-fg);
+  --sidebar-accent:               var(--gs-orange-soft);
+  --sidebar-accent-foreground:    var(--gs-orange);
+  --sidebar-border:               var(--gs-line);
+  --sidebar-ring:                 var(--gs-orange);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Base styles
+   ══════════════════════════════════════════════════════════════════════════════ */
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    background-color: var(--gs-bg);
+    color: var(--gs-t1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    transition: background-color .25s, color .25s;
+  }
+
+  ::selection {
+    background-color: var(--gs-orange);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--gs-bg-2); }
+  ::-webkit-scrollbar-thumb { background: var(--gs-line-2); border-radius: 99px; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Custom utilities
+   Anything Tailwind v4 can't derive automatically from @theme
+   ══════════════════════════════════════════════════════════════════════════════ */
+@layer utilities {
+  /* Hide scrollbar (for product tabs horizontal scroll) */
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Section vertical padding shorthand */
+  .py-22 {
+    padding-top: 5.5rem;   /* 88px */
+    padding-bottom: 5.5rem;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   App shell — header height variable + sidebar overrides
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root {
+  --header-height: 52px;
+}
+
+@layer base {
+  /*
+   * Soften ALL shadcn component borders globally.
+   * shadcn uses --border for nearly every border — we make it warm + subtle.
+   * The /60 opacity makes it lighter than the raw gs-line colour.
+   */
+  [data-slot="sidebar"],
+  [data-slot="sidebar-content"],
+  [data-slot="card"],
+  [data-slot="dialog-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="popover-content"] {
+    border-color: color-mix(in srgb, var(--gs-line) 60%, transparent);
+  }
+
+  /* Sidebar always fills full height of its container */
+  [data-slot="sidebar"] {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* SidebarContent must grow and scroll, not shrink */
+  [data-slot="sidebar-content"] {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Collapsible open/close animation
+   Used by nav-main.tsx AnimatedCollapsibleContent wrapper.
+   grid-rows trick: animates height from 0 → auto smoothly without JS.
+   ══════════════════════════════════════════════════════════════════════════════ */
+@theme {
+  --animate-collapsible-down: collapsible-down 200ms ease-out;
+  --animate-collapsible-up:   collapsible-up   180ms ease-in;
+
+  @keyframes collapsible-down {
+    from { grid-template-rows: 0fr; opacity: 0.6; }
+    to   { grid-template-rows: 1fr; opacity: 1; }
+  }
+  @keyframes collapsible-up {
+    from { grid-template-rows: 1fr; opacity: 1; }
+    to   { grid-template-rows: 0fr; opacity: 0.6; }
+  }
+}
+
+/*
+ * The grid-rows animation requires the CollapsibleContent's direct child
+ * to have overflow:hidden. shadcn sets this internally, but we reinforce it.
+ */
+@layer base {
+  [data-radix-collapsible-content] {
+    overflow: hidden;
+  }
+  [data-state="open"] > [data-radix-collapsible-content] {
+    animation: collapsible-down 200ms ease-out;
+  }
+  [data-state="closed"] > [data-radix-collapsible-content] {
+    animation: collapsible-up 180ms ease-in;
   }
 }

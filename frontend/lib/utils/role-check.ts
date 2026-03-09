@@ -1,120 +1,62 @@
 // lib/utils/role-check.ts
+//
+// ✅ useHasRole reads from UserContext — no useCurrentUser() call.
+// filterNavigationByRole is pure — no hooks, safe to call anywhere.
 
+import { useUser } from "@/app/(authenticated)/layout";
 import { AppRole } from "@/types/auth.types";
-import { NavigationSection } from "../navigation-config";
-import { useCurrentUser } from "@/features/auth/auth.react.query";
+import type { NavigationSection } from "@/lib/navigation-config";
 
-
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
- * Check if user has at least one of the required roles
+ * Returns whether the current user has at least one of the required roles.
+ * Reads from UserContext — fires zero network requests.
  */
-export function hasRequiredRole(
-  userRoles: AppRole[],
-  requiredRoles: AppRole[]
-): boolean {
-     
-  if (!requiredRoles || requiredRoles.length === 0) {
-    return true; // No role requirement means accessible to all
-  }
-  return userRoles.some(role => requiredRoles.includes(role));
+export function useHasRole(requiredRoles: AppRole | AppRole[]): {
+  hasRole:   boolean;
+  isLoading: boolean;
+  error:     null; // never errors — context is always available
+} {
+  const { user, isLoading } = useUser();
+
+  const required = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+  const hasRole  = !!user?.roles?.some((r) => required.includes(r as AppRole));
+
+  return { hasRole, isLoading, error: null };
 }
 
-export function useHasRole(requiredRole: AppRole | AppRole[]) {
-  const { data: user, isLoading,error } = useCurrentUser();
-
-  const hasRole = () => {
-    if (!user?.roles) return false;
-
-    const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    return roles.some(role => user.roles.includes(role));
-  };
-
-  return {
-    hasRole: hasRole(),
-    user,
-    isLoading,
-    error
-  };
-}
-
+// ─── Pure utility ─────────────────────────────────────────────────────────────
 
 /**
- * Check if user has required role (doesn't redirect)
- */
-// export function hasRequiredRole(userRoles: UserRole[], requiredRoles: UserRole[]): boolean {
-//   if (!requiredRoles || requiredRoles.length === 0) {
-//     return true;
-//   }
-//   return userRoles.some(role => requiredRoles.includes(role));
-// }
-
-
-/**
- * Filter navigation items based on user roles
+ * Filters navigation config to only sections/items the user's roles allow.
+ * Pure function — no hooks, safe to use in useMemo.
  */
 export function filterNavigationByRole(
-  sections: NavigationSection[],
-  userRoles: AppRole[]
+  config: NavigationSection[],
+  userRoles: string[]
 ): NavigationSection[] {
-  return sections
-    .filter(section => hasRequiredRole(userRoles, section.roles))
-    .map(section => ({
+  return config
+    .filter((section) =>
+      section.roles.some((r) => userRoles.includes(r))
+    )
+    .map((section) => ({
       ...section,
-      navMain: section.navMain.filter(item =>
-        hasRequiredRole(userRoles, item.roles)
-      ),
+      navMain: filterNavItems(section.navMain, userRoles),
     }))
-    .filter(section => section.navMain.length > 0); // Remove empty sections
+    .filter((section) => section.navMain.length > 0);
 }
 
-/**
- * Get current user from server-side session
- * This should integrate with your actual auth system
- */
-// export async function getCurrentUser(): Promise<User | null> {
-//   try {
-//     const cookieStore = await cookies();
-//     const session = cookieStore.get('user-session');
-    
-//     if (!session) {
-//       return null;
-//     }
-
-//     // Parse user from session cookie
-//     const user = JSON.parse(session.value);
-//     return user;
-//   } catch (error) {
-//     console.error('Failed to get current user:', error);
-//     return null;
-//   }
-// }
-
-/**
- * Require authentication - redirects to login if not authenticated
- */
-// export async function requireAuth(): Promise<User> {
-//   const user = await getCurrentUser();
-  
-//   if (!user) {
-//     redirect('/signin');
-//   }
-  
-//   return user;
-// }
-
-/**
- * Require specific roles - redirects to unauthorized if user doesn't have required roles
- */
-// export async function requireRoles(requiredRoles: UserRole[]): Promise<User> {
-//   const user = await requireAuth();
-  
-//   const hasRole = user.roles.some(role => requiredRoles.includes(role));
-  
-//   if (!hasRole) {
-//     redirect('/unauthorized');
-//   }
-  
-//   return user;
-// }
-
+function filterNavItems(
+  items: NavigationSection["navMain"],
+  userRoles: string[]
+): NavigationSection["navMain"] {
+  return items
+    .filter((item) => item.roles.some((r) => userRoles.includes(r)))
+    .map((item) => ({
+      ...item,
+      items: item.items
+        ? filterNavItems(item.items, userRoles)
+        : undefined,
+    }));
+}
