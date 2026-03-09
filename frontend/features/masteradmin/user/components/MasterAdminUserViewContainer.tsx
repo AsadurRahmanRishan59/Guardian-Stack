@@ -1,4 +1,4 @@
-// features/admin/user/AdminUserViewContainer.tsx
+// features/admin/user/components/AdminUserViewContainer.tsx
 "use client";
 
 import { useState } from "react";
@@ -11,60 +11,52 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserPlus, Users } from "lucide-react";
 import { MasterAdminUserList } from "./MasterAdminUserList";
 
 export function AdminUserViewContainer() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  const handleCreateNew = () => {
-    setCreateModalOpen(true);
-  };
-
-  const handleFormSuccess = () => {
-    setCreateModalOpen(false);
-  };
-
- return (
-    <div className="container mx-auto py-8 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
+  return (
+    <div className="space-y-5">
+      {/* ── Page header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Users className="h-5 w-5" />
+          <h1 className="text-lg sm:text-xl font-bold font-head text-t1 flex items-center gap-2">
+            <span className="flex items-center justify-center w-8 h-8 rounded-gs bg-brand-soft">
+              <Users className="h-4 w-4 text-brand" />
+            </span>
             User Management
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm text-t3 mt-1 ml-10">
             Manage system users, roles, and permissions
           </p>
         </div>
-        <Button onClick={handleCreateNew} size="lg">
-          <UserPlus className="mr-2 h-5 w-5" />
+
+        <Button
+          onClick={() => setCreateModalOpen(true)}
+          className="bg-brand hover:bg-brand-hover text-white gap-2 self-start sm:self-auto"
+        >
+          <UserPlus className="h-4 w-4" />
           Create User
         </Button>
       </div>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Users List</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MasterAdminUserList />
-        </CardContent>
-      </Card>
+      {/* ── Table ── */}
+      <MasterAdminUserList />
 
-      {/* Create User Modal */}
+      {/* ── Create modal ── */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-gs-line bg-surface-card">
           <DialogHeader>
-            <DialogTitle className="text-2xl">Create New User</DialogTitle>
-            <DialogDescription>
-              Fill in the details to create a new user account
+            <DialogTitle className="text-xl font-head text-t1">
+              Create New User
+            </DialogTitle>
+            <DialogDescription className="text-t3">
+              Fill in the details to create a new user account.
             </DialogDescription>
           </DialogHeader>
-          <CreateUserForm onSuccess={handleFormSuccess} />
+          <CreateUserForm onSuccess={() => setCreateModalOpen(false)} />
         </DialogContent>
       </Dialog>
     </div>

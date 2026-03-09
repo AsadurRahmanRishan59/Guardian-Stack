@@ -1,4 +1,4 @@
-//features/admin/user/components/AdminUserList.tsx
+// features/admin/user/components/MasterAdminUserList.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -6,7 +6,6 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Import reusable components
 import { useDataTable } from "@/lib/hooks/useDataTable";
 import { TableControls } from "@/components/table/TableControls";
 import { DataTable } from "@/components/table/DataTable";
@@ -65,7 +64,7 @@ const COLUMN_CONFIGS: TableColumnConfig<MasterAdminUserViewListRow>[] = [
     isBoolean: true,
     trueLabel: "Active",
     falseLabel: "Inactive",
-    isNegative: false, // true = Yellow/Primary
+    isNegative: false,
   },
   {
     key: "accountLocked",
@@ -75,7 +74,7 @@ const COLUMN_CONFIGS: TableColumnConfig<MasterAdminUserViewListRow>[] = [
     isBoolean: true,
     trueLabel: "Locked",
     falseLabel: "Unlocked",
-    isNegative: true, // true = Red/Destructive
+    isNegative: true,
   },
   {
     key: "accountExpired",
@@ -112,8 +111,8 @@ const COLUMN_CONFIGS: TableColumnConfig<MasterAdminUserViewListRow>[] = [
     isDate: false,
   },
 ];
+
 export const MasterAdminUserList = () => {
-  // State
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -127,8 +126,6 @@ export const MasterAdminUserList = () => {
     });
   const [showFilter, setShowFilter] = useState(false);
   const [searchDebounce, setSearchDebounce] = useState("");
-
-  // Mutations & Queries
 
   const {
     filterOptions,
@@ -145,7 +142,6 @@ export const MasterAdminUserList = () => {
     refetch: userListRefetch,
   } = useQueryAdminUserView(searchCriteria);
 
-  // In your component where you're preparing the data for the table
   const tableRows: MasterAdminUserViewListRow[] = users.map(
     (user: MasterAdminUserView) => ({
       userId: user.userId,
@@ -156,13 +152,12 @@ export const MasterAdminUserList = () => {
       accountExpired: user.accountExpired,
       credentialExpired: user.credentialExpired,
       signUpMethod: user.signUpMethod,
-      roles: user.roles.map((role) => role).join(", "), // Join
+      roles: user.roles.join(", "),
       createdAt: user.createdAt,
       createdBy: user.createdBy,
-    }),
+    })
   );
 
-  // Handlers
   const handleViewUser = useCallback((id: string | number) => {
     const userId = typeof id === "string" ? parseInt(id, 10) : id;
     if (!isNaN(userId)) {
@@ -182,7 +177,7 @@ export const MasterAdminUserList = () => {
         }
       }
     },
-    [users],
+    [users]
   );
 
   const handleEditSuccess = () => {
@@ -205,13 +200,11 @@ export const MasterAdminUserList = () => {
     setSearchCriteria(criteria);
   };
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = (page: number) =>
     setSearchCriteria((prev) => ({ ...prev, page }));
-  };
 
-  const handlePageSizeChange = (size: number) => {
+  const handlePageSizeChange = (size: number) =>
     setSearchCriteria((prev) => ({ ...prev, size, page: 0 }));
-  };
 
   const activeFiltersCount = useMemo(() => {
     return (
@@ -222,11 +215,10 @@ export const MasterAdminUserList = () => {
         key !== "size" &&
         key !== "sortBy" &&
         key !== "sortDirection" &&
-        searchCriteria[key] !== undefined,
+        searchCriteria[key] !== undefined
     ).length;
   }, [searchCriteria]);
 
-  // Columns
   const columns: ColumnDef<MasterAdminUserViewListRow>[] = useMemo(
     () => [
       createIndexColumn<MasterAdminUserViewListRow>(),
@@ -235,27 +227,23 @@ export const MasterAdminUserList = () => {
         handleViewUser,
         undefined,
         handleEditUser,
-        "User",
+        "User"
       ),
     ],
-    [handleViewUser, handleEditUser],
+    [handleViewUser, handleEditUser]
   );
 
-  // Use the generic table hook
   const { table, toggleableColumns, visibleCount, totalCount, columnActions } =
-    useDataTable<MasterAdminUserViewListRow, MasterAdminUserViewSearchCriteria>(
-      {
-        data: tableRows as MasterAdminUserViewListRow[],
-        columns,
-        columnConfigs: COLUMN_CONFIGS,
-        pagination,
-        searchCriteria,
-        onSearchChange: handleSearchChange,
-        getRowId: (row) => String(row.userId),
-      },
-    );
+    useDataTable<MasterAdminUserViewListRow, MasterAdminUserViewSearchCriteria>({
+      data: tableRows,
+      columns,
+      columnConfigs: COLUMN_CONFIGS,
+      pagination,
+      searchCriteria,
+      onSearchChange: handleSearchChange,
+      getRowId: (row) => String(row.userId),
+    });
 
-  // Effects
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchCriteria((prev) => ({
@@ -264,32 +252,28 @@ export const MasterAdminUserList = () => {
         page: 0,
       }));
     }, 500);
-
     return () => clearTimeout(timer);
   }, [searchDebounce]);
 
-  // Render filter form
   const renderFilterForm = () => {
     if (filterLoading) {
       return (
-        <div className="flex flex-col items-center justify-center py-6 gap-2 text-sm text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Loading Filters...</span>
+        <div className="flex items-center justify-center py-6 gap-2 text-sm text-t3">
+          <Loader2 className="w-4 h-4 animate-spin text-brand" />
+          <span>Loading filters…</span>
         </div>
       );
     }
-
     if (filterError) {
       return (
-        <Alert variant="destructive">
-          <AlertTitle>Error loading filters</AlertTitle>
-          <AlertDescription>
+        <Alert variant="destructive" className="border-destructive/30 bg-destructive/10">
+          <AlertTitle className="text-destructive">Error loading filters</AlertTitle>
+          <AlertDescription className="text-destructive/80">
             Please check your network or try refreshing.
           </AlertDescription>
         </Alert>
       );
     }
-
     if (filterOptions) {
       return (
         <MasterAdminUserViewFilterForm
@@ -300,17 +284,15 @@ export const MasterAdminUserList = () => {
         />
       );
     }
-
     return null;
   };
 
   return (
-    <div className="space-y-4">
-      {/* Table Controls */}
+    <div className="space-y-3">
       <TableControls
         searchValue={searchDebounce}
         onSearchChange={setSearchDebounce}
-        searchPlaceholder="Search users..."
+        searchPlaceholder="Search users…"
         showFilter={showFilter}
         onFilterToggle={() => setShowFilter(!showFilter)}
         activeFiltersCount={activeFiltersCount}
@@ -328,11 +310,10 @@ export const MasterAdminUserList = () => {
         {renderFilterForm()}
       </TableControls>
 
-      {/* Data Table */}
       <DataTable
         table={table}
         columns={columns}
-        data={tableRows as MasterAdminUserViewListRow[]}
+        data={tableRows}
         pagination={pagination}
         isLoading={userListLoading}
         error={userListError}
@@ -343,7 +324,6 @@ export const MasterAdminUserList = () => {
         emptyMessage="No users found."
       />
 
-      {/* User View Modal */}
       {selectedUserId && (
         <AdminUserModal
           userId={selectedUserId}
@@ -351,14 +331,14 @@ export const MasterAdminUserList = () => {
           onOpenChange={setViewModalOpen}
         />
       )}
-      {/* Edit User Modal */}
+
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-gs-line bg-surface-card">
           <DialogHeader>
-            <DialogTitle className="text-2xl">Update User</DialogTitle>
-            <DialogDescription>
-              Update the user information below. Leave the password field empty
-              to keep the current password.
+            <DialogTitle className="text-xl font-head text-t1">Update User</DialogTitle>
+            <DialogDescription className="text-t3">
+              Update the user information below. Leave the password field empty to keep
+              the current password.
             </DialogDescription>
           </DialogHeader>
           {userToEdit && (

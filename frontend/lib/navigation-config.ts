@@ -123,8 +123,8 @@ export const navigationConfig: NavigationSection[] = [
         isActive: true,
         roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
         items: [
-          { title: "Setup", url: "/admin/user/setup", icon: UserPlus, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-          { title: "List",  url: "/admin/user/list",  icon: Users,    roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+          { title: "User Management", url: "/admin/user/user-management", icon: UserPlus, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+          // { title: "List",  url: "/admin/user/list",  icon: Users,    roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
         ],
       },
 

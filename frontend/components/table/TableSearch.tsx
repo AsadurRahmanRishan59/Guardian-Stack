@@ -1,4 +1,3 @@
-// 2. Table Search Component
 // components/table/TableSearch.tsx
 import React from 'react';
 import { Search } from 'lucide-react';
@@ -19,10 +18,10 @@ export const TableSearch: React.FC<TableSearchProps> = ({
 }) => {
   return (
     <div className={`flex-1 relative ${className}`}>
-      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-t3 pointer-events-none" />
       <Input
         placeholder={placeholder}
-        className="pl-10"
+        className="pl-9 h-9 bg-surface border-gs-line text-t1 placeholder:text-t4 focus-visible:ring-brand focus-visible:border-brand transition-colors"
         onChange={(e) => onChange(e.target.value)}
         value={value}
       />

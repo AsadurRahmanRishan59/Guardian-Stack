@@ -1,9 +1,9 @@
-// 6. Table Controls Component
 // components/table/TableControls.tsx
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 import { TableSearch } from './TableSearch';
 import { FilterToggle } from './FilterToggle';
@@ -28,7 +28,7 @@ interface TableControlsProps<T> {
   onResetColumns: () => void;
   onRefresh: () => void;
   isRefreshing?: boolean;
-  children?: React.ReactNode; // For filter form
+  children?: React.ReactNode;
 }
 
 export function TableControls<T>({
@@ -51,9 +51,10 @@ export function TableControls<T>({
   children,
 }: TableControlsProps<T>) {
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex gap-4 items-center">
+    <Card className="border-gs-line bg-surface-card shadow-none">
+      <CardContent className="p-3 sm:p-4">
+        {/* Controls row */}
+        <div className="flex gap-2 items-center">
           <TableSearch
             value={searchValue}
             onChange={onSearchChange}
@@ -77,13 +78,21 @@ export function TableControls<T>({
             onReset={onResetColumns}
           />
 
-          <Button variant="outline" onClick={onRefresh} disabled={isRefreshing}>
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="h-9 w-9 shrink-0 border-gs-line text-t3 hover:text-t1 hover:bg-surface-2 hover:border-gs-line-2 transition-colors"
+            aria-label="Refresh"
+          >
+            <RefreshCw className={cn('h-4 w-4', isRefreshing && 'animate-spin')} />
           </Button>
         </div>
 
+        {/* Filter panel — animated slide-down */}
         {showFilter && children && (
-          <div className="border border-muted rounded-lg bg-muted/90 px-4 py-3 mt-6">
+          <div className="mt-3 rounded-gs border border-gs-line bg-surface-2 px-4 py-3 animate-slide-down">
             {children}
           </div>
         )}
@@ -91,4 +100,3 @@ export function TableControls<T>({
     </Card>
   );
 }
-
