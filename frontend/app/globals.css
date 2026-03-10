@@ -169,28 +169,34 @@
 }
 
 .dark {
-  --gs-orange:           #FF7432;
-  --gs-orange-hover:     #E85C0D;
-  --gs-orange-soft:      #2B1608;
-  --gs-orange-border:    #4A2510;
+  /* ── Brand — vibrant, bold orange for dark mode ────────────────────────── */
+  --gs-orange:           #FF6B1F;   /* bold, saturated orange — vivid & not faded */
+  --gs-orange-hover:     #E85C0D;   /* darker hover state */
+  --gs-orange-soft:      #4d3220;   /* warm dark accent background */
+  --gs-orange-border:    #7d5235;   /* warm border with presence */
   --gs-orange-fg:        #ffffff;
 
-  --gs-bg:               #0D0C0A;
-  --gs-bg-2:             #151410;
-  --gs-bg-3:             #1C1A16;
-  --gs-card:             #191714;
+  /* ── Surfaces — warm, inviting dark palette ───────────────────────────── */
+  --gs-bg:               #181614;   /* page bg        — neutral warm dark */
+  --gs-bg-2:             #1f1d18;   /* subtle recessed — warm tone */
+  --gs-bg-3:             #282520;   /* inset / striped — slightly warmer */
+  --gs-card:             #242220;   /* card surface    — light contrast, still dark */
 
-  --gs-t1:               #F0EDE8;
-  --gs-t2:               #C2BDB5;
-  --gs-t3:               #857F77;
-  --gs-t4:               #524E48;
+  /* ── Text — refined for readability without harshness ──────────────────── */
+  --gs-t1:               #f5f1ed;   /* primary text    — soft white, not harsh */
+  --gs-t2:               #c5bfb8;   /* secondary text  — warm grey */
+  --gs-t3:               #8b8580;   /* tertiary text   — muted mid-grey */
+  --gs-t4:               #6b6560;   /* placeholder     — understated grey */
 
-  --gs-line:             #27241E;
-  --gs-line-2:           #35312A;
+  /* ── Borders — subtle but visible ──────────────────────────────────────── */
+  --gs-line:             #3d3933;   /* default border  — warm charcoal */
+  --gs-line-2:           #4f4a43;   /* emphasis border — stronger warm border */
 
-  --gs-green:            #3DBA72;
-  --gs-green-bg:         #0D2119;
+  /* ── Semantic ───────────────────────────────────────────────────────────── */
+  --gs-green:            #52d380;   /* softer, cooler green */
+  --gs-green-bg:         #1d2a23;   /* dark green background */
 
+  /* ── shadcn/ui aliases ─────────────────────────────────────────────────── */
   --background:              var(--gs-bg);
   --foreground:              var(--gs-t1);
   --card:                    var(--gs-card);
