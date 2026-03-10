@@ -1,3 +1,4 @@
+// features/auth/auth.react.query.ts
 import { LoginCredentials, PasswordResetRequest, SignupRequest, UserResponse, VerifyOTPData } from "@/types/auth.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,7 @@ export const authKeys = {
     user: () => [...authKeys.all, 'user'] as const,
 };
 
-//Get current user
+// Get current user
 export function useCurrentUser() {
     return useQuery({
         queryKey: authKeys.user(),
@@ -20,12 +21,32 @@ export function useCurrentUser() {
             const response = await getCurrentUser();
             return response.data as UserResponse;
         },
-        retry: 1,
+
+        // ── retry: 0 is critical for public pages ────────────────────────
+        //
+        // With retry: 1 (old value), a guest visiting the landing page causes:
+        //   1. getCurrentUser() → 401 (no session — expected for guests)
+        //   2. api.client catches 401 → calls attemptRefresh
+        //   3. refresh → 401 (no refresh cookie — expected for guests)
+        //   4. React Query retries once more → same chain again
+        //
+        // retry: 0 means: one attempt, if it fails (401 for guest), treat
+        // data as null/undefined and move on. The landing page renders fine.
+        // The AuthGate in the authenticated layout handles the actual redirect.
+        retry: 0,
+
+        // ── throwOnError: false ───────────────────────────────────────────
+        //
+        // Without this, a 401 for a guest sets isError=true on the query.
+        // Components that check isError show an error UI instead of guest mode.
+        // With throwOnError: false, a failed getCurrentUser() gives
+        // data: undefined silently — page renders in guest mode as expected.
+        throwOnError: false,
+
+        staleTime: Infinity,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        staleTime: Infinity
-
     });
 }
 
@@ -35,12 +56,7 @@ export function useSignup() {
     return useMutation({
         mutationFn: async (data: SignupRequest) => await doSignup(data),
         onSuccess: (response) => {
-            // GuardianStack Flow: 
-            // Signup is successful, but user is NOT enabled yet.
-            // We redirect them to the OTP verification page.
             toast.success(response.message || "Account created! Please verify your email.");
-
-            // Pass the email to the verify page via query params so the user doesn't have to re-type it
             const email = response.data?.userResponse.email;
             router.push(`/verify-otp?email=${encodeURIComponent(email || "")}`);
         },
@@ -66,19 +82,14 @@ export function useSignin() {
         },
         onError: (error: unknown, variables) => {
             if (isServerError(error)) {
-                // Based on Spring Boot Record: data contains "ACCOUNT_DISABLED"
                 const errorData = error?.data;
-
                 if (errorData === "ACCOUNT_DISABLED") {
                     toast.error("Account not verified. Redirecting...");
                     router.push(`/verify-otp?email=${encodeURIComponent(variables.email)}`);
                     return;
                 }
-
-                // Handle other specific server errors (Bad Credentials, etc.)
                 toast.error(error.message || 'Failed to login');
             } else {
-                // This handles network errors or unexpected JS crashes
                 toast.error('A network error occurred. Please try again.');
             }
         }
@@ -98,9 +109,6 @@ export function useLogout() {
         },
     });
 }
-
-
-// features/auth/auth.react.query.ts
 
 export function useVerifyOtp() {
     return useMutation({
@@ -141,7 +149,6 @@ export function useForgotPassword() {
         },
         onSuccess: (response, variables) => {
             toast.success(response.message || "A new code has been sent to your email.");
-            // Push them to the reset password page
             router.push(`/reset-password?email=${encodeURIComponent(variables.email)}`);
         },
         onError: (error) => {
@@ -156,7 +163,6 @@ export function useResetPassword() {
     return useMutation({
         mutationFn: async (data: PasswordResetRequest) => await doResetPassword(data),
         onSuccess: (response) => {
-
             toast.success(response.message || "Password has been reset successfully.");
             router.push(`/signin`);
         },

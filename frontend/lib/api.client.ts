@@ -38,6 +38,20 @@ function buildUrl(
     return queryString ? `${endpoint}?${queryString}` : endpoint;
 }
 
+// ─── Public routes that should never trigger a redirect on auth failure ───────
+//
+// These are routes where unauthenticated users are expected.
+// A guest visiting the landing page has no session cookie — that is normal,
+// not an error. We must not redirect them to /signin.
+
+const PUBLIC_PATHS = ['/', '/signin', '/signup', '/verify-otp', '/forgot-password', '/reset-password', '/unauthorized'];
+
+function isPublicPath(): boolean {
+    if (typeof window === 'undefined') return false;
+    const pathname = window.location.pathname;
+    return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + '?'));
+}
+
 // ─── Singleton refresh promise ────────────────────────────────────────────────
 //
 // Problem: when the JWT expires, every in-flight React Query gets a 401
@@ -59,20 +73,38 @@ async function attemptRefresh(baseUrl: string): Promise<void> {
         credentials: 'include',
     }).then(async (refreshResponse) => {
         if (!refreshResponse.ok) {
+            // Declare errorType at block scope so the throw below can always use it
             let errorType = 'session_expired';
-            try {
-                const errorData = await refreshResponse.json();
-                if (errorData.message) {
-                    errorType = errorData.message.toLowerCase();
+
+            if (!isPublicPath()) {
+                // On a protected route — parse the reason and redirect to signin
+                try {
+                    const errorData = await refreshResponse.json();
+                    if (errorData.message) {
+                        errorType = errorData.message.toLowerCase();
+                    }
+                } catch {
+                    // ignore parse failure — keep default 'session_expired'
                 }
-            } catch {
-                // ignore parse failure
+                console.warn(`❌ Refresh failed on protected route. Reason: ${errorType}`);
+                if (typeof window !== 'undefined') {
+                    window.location.href = `/signin?error=${errorType}`;
+                }
+            } else {
+                // Guest on public page — 401 is expected, don't redirect
+                console.log('ℹ️ No session on public page — skipping redirect.');
             }
-            console.warn(`❌ Refresh failed. Reason: ${errorType}`);
-            if (typeof window !== 'undefined') {
-                window.location.href = `/signin?error=${errorType}`;
-            }
-            throw new Error('Unauthorized');
+
+            // Always throw so the caller knows refresh failed.
+            // Using a structured object so isServerError() matches it and
+            // handleServerError passes it through with the correct statusCode.
+            throw {
+                success: false,
+                message: errorType,
+                statusCode: refreshResponse.status,
+                data: null,
+                timestamp: new Date().toISOString(),
+            };
         }
         console.log('✅ Refresh successful.');
     }).finally(() => {
@@ -119,15 +151,17 @@ export async function apiFetch<T = unknown>(
         if (response.status === 401 && !isAuthEndpoint) {
             console.log('🔄 JWT expired, queuing refresh…');
 
+            // attemptRefresh throws a structured ApiErrorResponse on failure.
+            // That throw propagates out of this try block directly to the catch,
+            // so the retry fetch below NEVER runs if refresh failed.
             await attemptRefresh(baseUrl);
 
-            // Re-read the new XSRF token issued during refresh
+            // Only reached if refresh succeeded ↓
             const newXsrfToken = getCookie('XSRF-TOKEN');
             if (newXsrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
                 finalHeaders.set('X-XSRF-TOKEN', newXsrfToken);
             }
 
-            // Retry the original request once
             response = await fetch(url, {
                 ...fetchOptions,
                 method,
@@ -139,7 +173,13 @@ export async function apiFetch<T = unknown>(
 
         return await parseResponse<T>(response);
     } catch (error) {
-        console.error('Client fetch error:', error);
+        // Log structured errors properly — plain objects log as {} with
+        // console.error(obj), so JSON.stringify gives the real content.
+        if (error instanceof Error) {
+            console.error('Client fetch error:', error.message);
+        } else {
+            console.error('Client fetch error:', JSON.stringify(error));
+        }
         throw handleServerError(error);
     }
 }

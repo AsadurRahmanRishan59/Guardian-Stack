@@ -13,6 +13,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useCurrentUser } from "@/features/auth/auth.react.query";
+import Link from "next/link";
 
 interface QuoteForm {
   regNumber: string;
@@ -119,6 +121,7 @@ export default function GuardianStackPage() {
   const [notifyEmail,     setNotifyEmail]     = useState("");
   const [notifySent,      setNotifySent]      = useState<string | null>(null);
   const [openFaq,         setOpenFaq]         = useState<number | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [isLoading,       setIsLoading]       = useState(false);
   const [scrolled,        setScrolled]        = useState(false);
   const exitTriggered = useRef(false);
@@ -156,6 +159,9 @@ export default function GuardianStackPage() {
     }, 1400);
   };
 
+  // ── Auth state (landing page — guest shows nothing, logged-in gets dashboard link) ──
+  const { data: currentUser } = useCurrentUser();
+
   // ── Shared class snippets ────────────────────────────────────────────────────
   const INPUT_CLS = "w-full h-11 px-3.5 rounded-gs-sm border border-gs-line bg-surface text-t1 text-sm font-body placeholder:text-t4 outline-none transition-all duration-200 focus:border-brand focus:ring-2 focus:ring-brand/10 focus:bg-surface-card";
   const LABEL_CLS = "block text-[11px] font-semibold uppercase tracking-[0.06em] text-t3 mb-1.5";
@@ -166,12 +172,14 @@ export default function GuardianStackPage() {
       {/* ── Navbar ──────────────────────────────────────────────────────────── */}
       <nav className={`fixed top-0 left-0 right-0 z-50 h-[60px] flex items-center justify-between px-10 bg-surface transition-all duration-300 ${scrolled ? "border-b border-gs-line" : "border-b border-transparent"}`}>
 
-        <a href="#" className="flex items-center gap-2.5 no-underline">
-          <div className="w-[30px] h-[30px] bg-brand rounded-[8px] flex items-center justify-center shrink-0">
-            <ShieldLogo />
-          </div>
+        <Link href="/" className="flex items-center gap-2.5 no-underline">
+          <img
+            src="/images/GS.png"
+            alt="Guardian Stack"
+            className="w-[36px] h-[36px] rounded-[9px] object-contain shrink-0"
+          />
           <span className="font-head text-[15px] font-bold tracking-tight text-t1">Guardian Stack</span>
-        </a>
+        </Link>
 
         <div className="hidden md:flex items-center gap-7">
           {[["Products","#products"],["How it works","#how-it-works"],["Security","#security"],["FAQ","#faq"]].map(([l,h]) => (
@@ -179,19 +187,100 @@ export default function GuardianStackPage() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          {currentUser ? (
+            // ── Logged-in user ──────────────────────────────────────────
+            <Link
+              href="/dashboard"
+              className="
+                h-9 px-[18px] inline-flex items-center gap-2
+                bg-brand hover:bg-brand-hover
+                text-white text-[13px] font-semibold
+                rounded-gs-sm no-underline
+                transition-all duration-200 hover:-translate-y-px
+              "
+            >
+              <img src="/images/GS.png" alt="" className="w-4 h-4 rounded-[4px] object-contain shrink-0" />
+              Dashboard
+            </Link>
+          ) : (
+            // ── Guest ───────────────────────────────────────────────────
+            <>
+              <Link
+                href="/signin"
+                className="
+                  h-9 px-4 inline-flex items-center
+                  text-[13px] font-medium text-t2
+                  hover:text-t1 no-underline
+                  transition-colors duration-150
+                "
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="
+                  h-9 px-[18px] inline-flex items-center
+                  bg-surface-card border border-gs-line
+                  text-[13px] font-semibold text-t1
+                  rounded-gs-sm no-underline
+                  hover:border-brand hover:text-brand
+                  transition-all duration-150
+                "
+              >
+                Sign up
+              </Link>
+              <button
+                onClick={() => document.getElementById("hero-quote")?.scrollIntoView({ behavior: "smooth" })}
+                className="h-9 px-[18px] bg-brand hover:bg-brand-hover text-white text-[13px] font-semibold rounded-gs-sm transition-all duration-200 hover:-translate-y-px border-none cursor-pointer"
+              >
+                Get a quote
+              </button>
+            </>
+          )}
           <ThemeToggle />
-          <button
-            onClick={() => document.getElementById("hero-quote")?.scrollIntoView({ behavior: "smooth" })}
-            className="h-9 px-[18px] bg-brand hover:bg-brand-hover text-white text-[13px] font-semibold rounded-gs-sm transition-all duration-200 hover:-translate-y-px border-none cursor-pointer"
-          >
-            Get a quote
-          </button>
         </div>
       </nav>
 
+      {/* ── Returning user welcome banner ────────────────────────────────────── */}
+      {currentUser && !bannerDismissed && (
+        <div className="fixed top-[60px] left-0 right-0 z-40 flex items-center justify-between gap-4 px-6 py-2.5 bg-brand-soft border-b border-brand-border animate-slide-down">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img src="/images/GS.png" alt="" className="w-6 h-6 rounded-[6px] object-cover shrink-0" />
+            <p className="text-[13px] text-t1 truncate">
+              <span className="font-semibold">Welcome back, {currentUser.username}.</span>
+              <span className="text-t3 ml-1.5 hidden sm:inline">You're already signed in.</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/dashboard"
+              className="
+                inline-flex items-center gap-1.5
+                h-7 px-3.5 rounded-gs-sm
+                bg-brand text-white text-[12px] font-semibold
+                no-underline transition-all duration-150
+                hover:bg-brand-hover hover:-translate-y-px
+              "
+            >
+              Go to dashboard
+              <svg viewBox="0 0 15 15" className="w-3 h-3 fill-white">
+                <path d="M8.293 2.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L10.586 8H2a1 1 0 010-2h8.586L8.293 3.707a1 1 0 010-1.414z"/>
+              </svg>
+            </Link>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="w-6 h-6 flex items-center justify-center rounded text-t3 hover:text-t1 hover:bg-brand-border/40 transition-colors bg-transparent border-none cursor-pointer text-[16px] leading-none"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
-      <section className="pt-[88px] pb-0 bg-surface">
+      <section className={`pb-0 bg-surface transition-all duration-300 ${currentUser && !bannerDismissed ? "pt-[128px]" : "pt-[88px]"}`}>
         <div className="max-w-[1120px] mx-auto px-10 pt-14">
 
           {/* Overline tag */}
@@ -571,6 +660,7 @@ export default function GuardianStackPage() {
               <a href="mailto:support@guardianstack.com.bd" className="text-[13.5px] font-semibold text-brand no-underline">
                 support@guardianstack.com.bd →
               </a>
+
             </div>
             <div>
               {FAQS.map((faq, i) => (
