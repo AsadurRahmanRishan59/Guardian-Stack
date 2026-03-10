@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @RestController
-@RequestMapping("/api/tariff/motor")
+@RequestMapping("/tariff/motor")
 public class MotorTariffController {
 
     private final MotorTariffService service;
