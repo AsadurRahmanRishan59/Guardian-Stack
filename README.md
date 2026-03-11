@@ -55,65 +55,106 @@ Farhan gets an email. He logs back in, reads the terms, and pays via bKash. Inst
 
 ---
 
-## ⚔️ Security — Things I Cared About
+## ⚔️ Security Stories — When GuardianStack Gets Tested
 
-I used this project to properly implement security patterns I wanted to understand deeply, not just copy-paste.
+I used this project to properly implement security patterns I wanted to understand deeply, not just copy-paste. Here's what happens when each one gets tested.
 
-### 🔨 Brute Force — Stopped Cold
+---
 
-At 2:47 AM, a script is hammering `/auth/public/login` — 500 attempts per minute from a single IP.
+### 🔨 Story 1: The Brute Force Attack
 
-**Bucket4j rate limiting** kicks in first: 5 attempts per minute per IP, then `429 Too Many Requests`. The script crawls to a halt. For any accounts the script reaches, **account lockout** activates after 5 consecutive failures — `account_locked = TRUE`, `locked_until = NOW() + 30 minutes`. Every failed attempt is written asynchronously to `gs_auth_audit_log` and streamed to ELK. Within 2 minutes the admin sees a wall of `LOGIN_FAILURE` events in Kibana, traces the IP, and blocks the subnet. Accounts compromised: **zero**.
+It's 2:47 AM. Someone in Chittagong is running a credential-stuffing script against `/auth/public/login`. They've acquired a leaked email list and are hammering the endpoint with 500 password attempts per minute.
 
-### 🕵️ The Rogue Admin — Caught by Envers
+GuardianStack's defenses activate in layers:
 
-Admin Karim decides to lower a tariff rate for his own benefit — drops `own_dp_basic` from ৳850 to ৳200. He thinks no one will notice.
+**Layer 1 — Rate Limiting (Bucket4j)**  
+The endpoint is decorated with `@RateLimited`. Each IP gets a token bucket — 5 attempts per minute. After the 5th failed attempt, the attacker receives `429 Too Many Requests`. Their script slows to a crawl. The attack's effectiveness drops by 99%.
 
-The `gs_motor_tariff` table is annotated with `@Audited`. The moment his transaction commits, Hibernate Envers writes a revision to `gs_motor_tariff_aud` — change type UPDATE, old value, new value, and the author captured from the Spring Security context at commit time. You cannot fake this.
+**Layer 2 — Account Lockout**  
+For the few accounts the script manages to reach, lockout activates after 5 consecutive failures — `account_locked = TRUE` and `locked_until = NOW() + 30 minutes` is written to `gs_users`. Subsequent attempts return `423 Account Locked` immediately, without even checking the password — a deliberate early exit to prevent timing attacks.
 
-At month-end, the Master Admin reviews the audit timeline. She sees the diff. The revision is attributed to Karim. His access is revoked — that revocation is itself written to `gs_user_roles_aud`. The audit tables are append-only. Nothing can be hidden retroactively.
+**Layer 3 — Audit Logging**  
+Every failed attempt is written asynchronously to `gs_auth_audit_log` with: timestamp, IP address, user-agent, device fingerprint, attempted email, and event type `LOGIN_FAILURE`. The ELK pipeline ingests these in real time.
 
-### 🔐 Stolen Device — Revoke in 45 Seconds
+**Layer 4 — The Alert**  
+At 2:49 AM, the ELK Watcher fires: *"Login failure rate exceeded 200/min from a single IP subnet."* The on-call admin, **Nazia**, gets a push notification. She opens **Audit → Login Log** and sees a wall of red `LOGIN_FAILURE` events from `103.x.x.x`. She traces the full lifecycle in Kibana in under 3 minutes. The subnet is blocked at the infrastructure level. Total accounts compromised: **zero**.
 
-Customer Sajida's phone is stolen. She borrows a friend's phone, logs in, goes to **Account → Active Sessions**, sees her stolen phone still active (Android/Chrome, last seen 8 minutes ago), and clicks **"Log out all other devices"**. Every refresh token for her account is invalidated in `gs_refresh_tokens` except the current session. The stolen phone's JWT can't be refreshed. The attack window is closed in under a minute.
+---
 
-### 🛡️ CSRF — A Lesson I Had to Learn by Building It
+### 🕵️ Story 2: The Rogue Admin Gets Caught
 
-This one I thought I understood. I didn't — not until I actually built it.
+**Karim** is a Normal Admin. He has a grudge. He decides to modify a tariff rate to favor a specific vehicle class — lowering the premium for Private Vehicles under 1300cc. He changes `own_dp_basic` from ৳850 to ৳200 on that tariff record.
 
-The common assumption: *"I'm using JWT, so I don't need to worry about CSRF."*
+He thinks no one will notice. He's wrong.
 
-That's wrong — and it depends entirely on **where you store the token**.
-
-Browsers automatically send cookies with every request to a matching domain. They don't care who triggered the request — your own app or a malicious third-party page. If your JWT lives in a cookie, a CSRF attack can absolutely use it.
-
-**How GuardianStack's architecture solves this at the design level:**
+The `gs_motor_tariff` table is annotated with `@Audited` via Hibernate Envers. The moment Karim's API call commits the transaction, Envers writes a new row to `gs_motor_tariff_aud`:
 
 ```
-Browser → Next.js API Routes (BFF) → Spring Boot
+tariff_key: 7  |  rev: 1842  |  revtype: 1 (UPDATE)
+own_dp_basic: 200.00  ← changed from 850.00
+created_by: karim@guardianstack.com
+timestamp: 2025-03-10 11:34:22
 ```
 
-The browser never talks to Spring Boot directly. Next.js Route Handlers sit in the middle as a **Backend For Frontend (BFF)**:
+The `revinfo` table records the revision author via `CustomRevisionListener` — it captures the authenticated username from the Spring Security context at commit time. You cannot fake this. It happens inside the transaction.
 
-- They receive browser requests (the risky leg — cookies are sent automatically here)
-- They validate auth and CSRF at the BFF layer
-- They forward requests to Spring Boot **with server-added `Authorization` headers**
+At month-end, the Master Admin opens **Master Data → Tariffs → Motor → Audit Timeline**. She sees the diff — `own_dp_basic` dropped from 850 to 200 on March 10th. The revision is attributed to Karim. She clicks **Inspector** and sees the full before/after state of every field in that revision.
 
-That last step is the key. A browser cannot forge server-to-server headers. An attacker's phishing page cannot make Next.js add an `Authorization: Bearer <token>` header on their behalf — that happens server-side, in code the attacker has no access to.
+Karim's access is revoked. His role change is itself written to `gs_user_roles_aud`. The immutable record stands. Nothing was deleted. Nothing was hidden. The audit tables are read-only by design — not even the Master Admin can modify them.
 
-Spring Boot therefore **never needs its own CSRF protection** — it only accepts requests from Next.js with those manually-attached headers. The CSRF problem is fully resolved one layer up.
+---
+
+### 🔐 Story 3: The Stolen Device
+
+**Sajida** is a regular customer. Her phone is stolen at a shopping mall. The thief can see she's logged into GuardianStack — her session token is live.
+
+Sajida borrows a friend's phone and logs in. She navigates to **Account → Active Sessions**. She can see every active session: her stolen phone (last seen 8 minutes ago, device fingerprint: Android/Chrome), her laptop at home, and this current session.
+
+She clicks **"Log out all other devices"**. The system invalidates all refresh tokens for her account in `gs_refresh_tokens` except the current one. The stolen phone's session is dead. Even if the thief tries to silently refresh the JWT, the refresh token returns `401 Token Revoked`. The entire session revocation took her 45 seconds.
+
+---
+
+### 🛡️ Story 4: The CSRF Attempt — And What I Actually Learned
+
+A phishing site tricks a GuardianStack employee into clicking a disguised link. The malicious page fires a cross-origin POST to `https://app.guardianstack.com/admin/user/123/role` attempting to elevate a user's privileges.
+
+This is where I had to unlearn something. The common assumption: *"I'm using JWT, so CSRF isn't my problem."* That's wrong — and it depends entirely on **where you store the token**. Browsers automatically send cookies with every request to a matching domain. If your JWT is in a cookie, a CSRF attack can absolutely use it.
+
+**How GuardianStack solves this at the architecture level:**
+
+```
+Browser → Next.js Route Handlers (BFF) → Spring Boot
+```
+
+The browser never talks to Spring Boot directly. Next.js sits in the middle as a **Backend For Frontend**:
+
+- It receives browser requests (the risky leg — cookies are sent automatically here)
+- It validates auth and CSRF at the BFF layer
+- It forwards requests to Spring Boot **with server-added `Authorization` headers**
+
+A browser cannot forge server-to-server headers. An attacker's phishing page cannot make Next.js add an `Authorization: Bearer <token>` on their behalf — that happens server-side, in code the attacker has no access to. Spring Boot therefore **never needs its own CSRF protection** — the problem is resolved one layer up.
 
 Three things I confirmed by building this:
 - **JWT does not automatically mean no CSRF** — token storage location is what matters
 - **HTTPS does not stop CSRF** — it encrypts the channel, not the request origin
 - **SameSite cookies help, but are not a complete solution**
 
-> I built a minimal POC demonstrating the vulnerable case vs. the fixed case:  
-> [CSRF POC — vulnerable vs. fixed](https://lnkd.in/gps7g535)
+> I built a minimal POC showing the vulnerable case vs. the fixed case: [CSRF POC](https://lnkd.in/gps7g535)
 
-### 🚨 Late Night Hack — Traced on ELK
+---
 
-ELK detects the same employee account making API calls from Bangladesh and the Netherlands within 4 minutes. Physically impossible. The Watcher alert fires. The admin gets a push notification, opens Kibana, traces the full session from the initial phishing click to the fraudulent API calls. Account locked. Full lifecycle of the attack reconstructed from logs. Fraudulent policy approvals: **zero**.
+### 🚨 Story 5: The Late Night Hack Alert
+
+It's 11:58 PM on a Wednesday. ELK detects an anomaly: an authenticated session belonging to employee **Hasan** is making API calls from Bangladesh and the Netherlands simultaneously — within a 4-minute window. Physically impossible.
+
+The Watcher alert fires: *"Impossible travel detected — hasan@guardianstack.com. BD → NL in 4 minutes."*
+
+The on-call admin gets a critical alert on her phone. She investigates:
+
+1. **Audit → Login Log** — Hasan's legitimate Dhaka login at 11:42 PM, then a login from a Dutch IP at 11:46 PM using the same refresh token.
+2. **ELK Kibana** — she pulls the full session trace. The Dutch IP is hitting the policy approval endpoints. Someone is trying to approve fraudulent policies at midnight.
+3. **Action** — she navigates to **User Management → Hasan → Active Sessions**, force-revokes all tokens. Account locked pending investigation. Incident noted in the audit log.
+4. **Morning debrief** — the full attack lifecycle is reconstructed from ELK: the original vector was a phishing email Hasan clicked at 11:39 PM, exposing his refresh token. Everything from the initial phish to the admin response is traceable in the logs. Fraudulent policies approved: **zero** (the approval endpoint requires document verification state, which the attacker hadn't bypassed).
 
 ---
 
