@@ -12,7 +12,6 @@ import {
   getMotorHierarchy,
 } from "./motor.tariff.service";
 import type { MotorTariffDTO, MotorTariffSearchCriteria } from "./motor.tariff.types";
-import type { MotorTariffFilterFormValues } from "./motor.tariff.schema";
 
 // ── Query keys ────────────────────────────────────────────────────────────────
 export const motorTariffKeys = {
@@ -25,7 +24,7 @@ export const motorTariffKeys = {
 };
 
 // ── Paginated list ────────────────────────────────────────────────────────────
-export function useMotorTariffs(criteria?: MotorTariffFilterFormValues) {
+export function useMotorTariffs(criteria?: MotorTariffSearchCriteria) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: motorTariffKeys.list(criteria ?? {}),
     queryFn: () => getMotorTariffs(criteria),

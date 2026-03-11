@@ -26,7 +26,6 @@ import {
   useDeleteMotorTariff,
   useMotorTariffById,
 } from "../motor.tariff.react-query";
-import { MotorTariffFilterFormValues } from "../motor.tariff.schema";
 import { MotorTariffSearchCriteria, MotorTariffShortView } from "../motor.tariff.types";
 import MotorTariffFilterForm from "./MotorTariffFilterForm";
 import { MotorTariffViewModal } from "./MotorTariffViewModal";
@@ -82,7 +81,7 @@ export function MotorTariffList() {
 
   // ── Search state ──
   const [searchCriteria, setSearchCriteria] =
-    useState<MotorTariffFilterFormValues>({
+    useState<MotorTariffSearchCriteria>({
       page: 0,
       size: 10,
       sortBy: "tariffKey",
@@ -152,12 +151,12 @@ export function MotorTariffList() {
     }
   };
 
-  const handleFilterSubmit = (criteria: MotorTariffFilterFormValues) => {
+  const handleFilterSubmit = (criteria: MotorTariffSearchCriteria) => {
     setSearchCriteria(criteria);
     setShowFilter(false);
   };
 
-  const handleSearchChange = (criteria: MotorTariffFilterFormValues) => {
+  const handleSearchChange = (criteria: MotorTariffSearchCriteria) => {
     setSearchCriteria(criteria);
   };
 

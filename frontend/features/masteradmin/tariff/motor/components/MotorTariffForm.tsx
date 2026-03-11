@@ -78,23 +78,17 @@ export function MotorTariffForm({
       earthquake: 0,
       isActive: true,
     },
+    mode: "onChange",
   });
 
   const { control, handleSubmit, setError, reset } = form;
 
   useEffect(() => {
     if (isEditMode && tariff) {
-      // We reset the form with the API data
-      reset({
-        ...tariff,
-        tariffType: tariff.tariffType as TariffType,
-      });
-
-      // EXTRA SECURE: Manually set the value just in case reset()
-      // is swallowed by the component's internal mounting state
-      form.setValue("tariffType", tariff.tariffType as TariffType);
+      reset(tariff);
     }
-  }, [isEditMode, tariff, reset, form]);
+  }, [isEditMode, tariff, reset]);
+
   const onSubmit = async (data: MotorTariffFormValues) => {
     try {
       if (isEditMode && tariffKey) {
@@ -156,17 +150,19 @@ export function MotorTariffForm({
                   <FormLabel className="text-xs font-medium">
                     Tariff Type *
                   </FormLabel>
+
                   <Select
+                    key={field.value ? `loaded-${field.value}` : "loading"}
                     onValueChange={field.onChange}
-                    // Adding a key based on the value can force a re-render if it gets stuck,
-                    // but usually, just ensuring value is never undefined is enough:
-                    value={field.value || ""}
+                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                     </FormControl>
+
                     <SelectContent>
                       {Object.values(TariffType).map((v) => (
                         <SelectItem key={v} value={v}>
@@ -175,10 +171,12 @@ export function MotorTariffForm({
                       ))}
                     </SelectContent>
                   </Select>
+
                   <FormMessage className="text-[10px]" />
                 </FormItem>
               )}
             />
+
             <FormField
               control={control}
               name="groupOfVehicle"

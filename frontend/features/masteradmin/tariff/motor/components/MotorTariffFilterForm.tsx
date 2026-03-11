@@ -1,10 +1,8 @@
-// features/masteradmin/tariff/motor/MotorTariffFilterForm.tsx
 "use client";
 
 import { FC, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { RotateCcw, Search } from "lucide-react";
+import { useForm, useWatch } from "react-hook-form";
+import { RotateCcw, Search, Loader2 } from "lucide-react";
 
 import {
   Form,
@@ -20,31 +18,57 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useMotorHierarchy } from "../motor.tariff.react-query";
+import { MotorTariffSearchCriteria } from "../motor.tariff.types";
 
-import {
-  motorTariffFilterSchema,
-  MotorTariffFilterFormValues,
-} from "../motor.tariff.schema";
+// Simple TS Type instead of Zod
+export type MotorTariffFilterValues = {
+  tariffKey?: number;
+  tariffType?: string;
+  groupOfVehicle?: string;
+  typeOfVehicle?: string;
+  category?: string;
+  isActive?: boolean;
+  page: number;
+  size: number;
+  sortBy: string;
+  sortDirection: "asc" | "desc";
+};
 
 interface MotorTariffFilterFormProps {
-  onSubmit: (data: MotorTariffFilterFormValues) => void;
-  defaultValues?: Partial<MotorTariffFilterFormValues>;
+  onSubmit: (data: MotorTariffSearchCriteria) => void;
+  defaultValues?: Partial<MotorTariffSearchCriteria>;
 }
 
 const fieldLabel = "text-xs font-semibold text-t3 uppercase tracking-wide mb-1";
-const control =
-  "h-8 text-sm bg-surface border-gs-line text-t1 placeholder:text-t4 focus-visible:ring-brand focus-visible:border-brand transition-colors";
 
-const TARIFF_TYPES = ["Private Vehicle", "Motor Cycle", "Commercial Vehicle"];
+/**
+ * SelectTrigger: fixed height, selected text truncates with ellipsis.
+ * `[&>span]:truncate` ensures the inner Radix value span clips cleanly.
+ */
+const triggerCls =
+  "h-8 text-sm bg-surface border-gs-line text-t1 w-full overflow-hidden " +
+  "focus-visible:ring-brand disabled:opacity-50 " +
+  "[&>span]:truncate [&>span]:block [&>span]:overflow-hidden [&>span]:max-w-full";
+
+/**
+ * SelectContent: match trigger width on small screens, cap at 400 px on large ones.
+ * `w-[var(--radix-select-trigger-width)]` is set by Radix automatically.
+ */
+const contentCls =
+  "w-[var(--radix-select-trigger-width)] min-w-[160px] max-w-[400px]";
+
+/** SelectItem: allow long text to wrap. */
+const itemCls =
+  "whitespace-normal leading-snug py-2 min-h-[2.5rem] " +
+  "flex items-center justify-start text-left cursor-pointer";
 
 const MotorTariffFilterForm: FC<MotorTariffFilterFormProps> = ({
   onSubmit,
   defaultValues = {},
 }) => {
-  const form = useForm<MotorTariffFilterFormValues>({
-    resolver: zodResolver(motorTariffFilterSchema),
+  const form = useForm<MotorTariffSearchCriteria>({
     defaultValues: {
       page: 0,
       size: 10,
@@ -54,26 +78,48 @@ const MotorTariffFilterForm: FC<MotorTariffFilterFormProps> = ({
     },
   });
 
-  const defaultValuesKey = JSON.stringify(defaultValues);
-  useEffect(() => {
-    form.reset({
-      page: 0,
-      size: 10,
-      sortBy: "tariffKey",
-      sortDirection: "asc",
-      ...defaultValues,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultValuesKey]);
+  const watched = useWatch({ control: form.control });
 
-  const handleSubmit = (data: MotorTariffFilterFormValues) => {
-    onSubmit({ ...data, page: 0 });
-  };
+  // ── Hierarchy Data ──────────────────────────────────────────────────────────
+  const { options: tariffTypes, isLoading: loadingTypes } =
+    useMotorHierarchy("tariffType", {});
+  const { options: vehicleGroups, isLoading: loadingGroups } =
+    useMotorHierarchy("groupOfVehicle", { tariffType: watched.tariffType });
+  const { options: vehicleTypes, isLoading: loadingVehTypes } =
+    useMotorHierarchy("typeOfVehicle", {
+      tariffType: watched.tariffType,
+      groupOfVehicle: watched.groupOfVehicle,
+    });
+  const { options: categories, isLoading: loadingCats } =
+    useMotorHierarchy("category", {
+      tariffType: watched.tariffType,
+      groupOfVehicle: watched.groupOfVehicle,
+      typeOfVehicle: watched.typeOfVehicle,
+    });
+
+  // ── Cascading Reset Logic ───────────────────────────────────────────────────
+  useEffect(() => {
+    form.setValue("groupOfVehicle", undefined);
+    form.setValue("typeOfVehicle", undefined);
+    form.setValue("category", undefined);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watched.tariffType]);
+
+  useEffect(() => {
+    form.setValue("typeOfVehicle", undefined);
+    form.setValue("category", undefined);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watched.groupOfVehicle]);
+
+  useEffect(() => {
+    form.setValue("category", undefined);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watched.typeOfVehicle]);
 
   const handleClear = () => {
-    const cleared: MotorTariffFilterFormValues = {
+    const cleared: MotorTariffSearchCriteria = {
       page: 0,
-      size: defaultValues.size ?? 10,
+      size: 10,
       sortBy: "tariffKey",
       sortDirection: "asc",
     };
@@ -83,196 +129,187 @@ const MotorTariffFilterForm: FC<MotorTariffFilterFormProps> = ({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-
-          {/* Tariff Key */}
-          <FormField
-            control={form.control}
-            name="tariffKey"
-            render={({ field }) => (
-              <FormItem className="space-y-1">
-                <FormLabel className={fieldLabel}>Tariff ID</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    type="number"
-                    min={1}
-                    placeholder="Search by ID…"
-                    className={control}
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(
-                        e.target.value === "" ? undefined : Number(e.target.value)
-                      )
-                    }
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
 
           {/* Tariff Type */}
           <FormField
             control={form.control}
             name="tariffType"
             render={({ field }) => (
-              <FormItem className="space-y-1">
+              <FormItem className="space-y-1 min-w-0">
                 <FormLabel className={fieldLabel}>Tariff Type</FormLabel>
-                <FormControl>
-                  <Select
-                    onValueChange={(v) =>
-                      field.onChange(v === "all" ? undefined : v)
-                    }
-                    value={field.value ?? "all"}
-                  >
-                    <SelectTrigger className={control}>
-                      <SelectValue placeholder="All types" />
+                <Select
+                  onValueChange={(v) => field.onChange(v === "all" ? undefined : v)}
+                  value={field.value ?? "all"}
+                >
+                  <FormControl>
+                    <SelectTrigger className={triggerCls}>
+                      {loadingTypes ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <SelectValue placeholder="All" />
+                      )}
                     </SelectTrigger>
-                    <SelectContent className="bg-surface-card border-gs-line">
-                      <SelectItem value="all" className="text-sm text-t3 focus:bg-surface-2">
-                        All types
-                      </SelectItem>
-                      {TARIFF_TYPES.map((t) => (
-                        <SelectItem
-                          key={t}
-                          value={t}
-                          className="text-sm text-t2 focus:bg-surface-2 focus:text-t1"
-                        >
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                  </FormControl>
+                  <SelectContent className={contentCls}>
+                    <SelectItem value="all" className={itemCls}>All Types</SelectItem>
+                    {tariffTypes.map((t) => (
+                      <SelectItem key={t} value={t} className={itemCls}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormItem>
             )}
           />
 
-          {/* Group of Vehicle */}
+          {/* Vehicle Group */}
           <FormField
             control={form.control}
             name="groupOfVehicle"
             render={({ field }) => (
-              <FormItem className="space-y-1">
+              <FormItem className="space-y-1 min-w-0">
                 <FormLabel className={fieldLabel}>Vehicle Group</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="Search vehicle group…"
-                    className={control}
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value || undefined)
-                    }
-                  />
-                </FormControl>
+                <Select
+                  disabled={!watched.tariffType}
+                  onValueChange={(v) => field.onChange(v === "all" ? undefined : v)}
+                  value={field.value ?? "all"}
+                >
+                  <FormControl>
+                    <SelectTrigger className={triggerCls}>
+                      {loadingGroups ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <SelectValue placeholder="Select Type First" />
+                      )}
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className={contentCls}>
+                    <SelectItem value="all" className={itemCls}>All Groups</SelectItem>
+                    {vehicleGroups.map((g) => (
+                      <SelectItem key={g} value={g} className={itemCls}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormItem>
             )}
           />
 
-          {/* Type of Vehicle */}
+          {/* Vehicle Type */}
           <FormField
             control={form.control}
             name="typeOfVehicle"
             render={({ field }) => (
-              <FormItem className="space-y-1">
+              <FormItem className="space-y-1 min-w-0">
                 <FormLabel className={fieldLabel}>Vehicle Type</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="Search vehicle type…"
-                    className={control}
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value || undefined)
-                    }
-                  />
-                </FormControl>
+                <Select
+                  disabled={!watched.groupOfVehicle}
+                  onValueChange={(v) => field.onChange(v === "all" ? undefined : v)}
+                  value={field.value ?? "all"}
+                >
+                  <FormControl>
+                    <SelectTrigger className={triggerCls}>
+                      {loadingVehTypes ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <SelectValue placeholder="Select Group First" />
+                      )}
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className={contentCls}>
+                    <SelectItem value="all" className={itemCls}>All Vehicle Types</SelectItem>
+                    {vehicleTypes.map((vt) => (
+                      <SelectItem key={vt} value={vt} className={itemCls}>{vt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormItem>
             )}
           />
 
-          {/* Category */}
+          {/* Category / CC Range */}
           <FormField
             control={form.control}
             name="category"
             render={({ field }) => (
-              <FormItem className="space-y-1">
-                <FormLabel className={fieldLabel}>Category / CC</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="Search category…"
-                    className={control}
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value || undefined)
-                    }
-                  />
-                </FormControl>
+              <FormItem className="space-y-1 min-w-0">
+                <FormLabel className={fieldLabel}>Category / CC Range</FormLabel>
+                <Select
+                  disabled={!watched.typeOfVehicle}
+                  onValueChange={(v) => field.onChange(v === "all" ? undefined : v)}
+                  value={field.value ?? "all"}
+                >
+                  <FormControl>
+                    <SelectTrigger className={triggerCls}>
+                      {loadingCats ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <SelectValue placeholder="Select Type First" />
+                      )}
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className={contentCls}>
+                    <SelectItem value="all" className={itemCls}>All Categories</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c} className={itemCls}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormItem>
             )}
           />
 
-          {/* Active Status */}
+          {/* Is Active */}
           <FormField
             control={form.control}
             name="isActive"
             render={({ field }) => (
-              <FormItem className="space-y-1">
+              <FormItem className="space-y-1 min-w-0">
                 <FormLabel className={fieldLabel}>Status</FormLabel>
-                <FormControl>
-                  <Select
-                    onValueChange={(v) =>
-                      field.onChange(
-                        v === "all" ? undefined : v === "true"
-                      )
-                    }
-                    value={
-                      field.value === undefined ? "all" : String(field.value)
-                    }
-                  >
-                    <SelectTrigger className={control}>
-                      <SelectValue placeholder="All statuses" />
+                <Select
+                  onValueChange={(v) =>
+                    field.onChange(v === "all" ? undefined : v === "true")
+                  }
+                  value={
+                    field.value === undefined
+                      ? "all"
+                      : field.value
+                      ? "true"
+                      : "false"
+                  }
+                >
+                  <FormControl>
+                    <SelectTrigger className={triggerCls}>
+                      <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
-                    <SelectContent className="bg-surface-card border-gs-line">
-                      <SelectItem value="all" className="text-sm text-t3 focus:bg-surface-2">
-                        All statuses
-                      </SelectItem>
-                      <SelectItem value="true" className="text-sm text-t2 focus:bg-surface-2 focus:text-t1">
-                        Active
-                      </SelectItem>
-                      <SelectItem value="false" className="text-sm text-t2 focus:bg-surface-2 focus:text-t1">
-                        Inactive
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                  </FormControl>
+                  <SelectContent className={contentCls}>
+                    <SelectItem value="all" className={itemCls}>All Statuses</SelectItem>
+                    <SelectItem value="true" className={itemCls}>Active</SelectItem>
+                    <SelectItem value="false" className={itemCls}>Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               </FormItem>
             )}
           />
         </div>
 
-        {/* Actions */}
         <div className="flex justify-end gap-2 pt-1 border-t border-gs-line">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handleClear}
-            className="h-8 text-t3 hover:text-t1 hover:bg-surface-3 gap-1.5"
+            className="h-8 gap-1.5"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Clear All
+            <RotateCcw className="w-3.5 h-3.5" /> Clear All
           </Button>
           <Button
             type="submit"
             size="sm"
-            className="h-8 bg-brand hover:bg-brand-hover text-white gap-1.5"
+            className="h-8 bg-brand hover:bg-brand-hover text-white gap-1.5 px-6"
           >
-            <Search className="w-3.5 h-3.5" />
-            Apply Filters
+            <Search className="w-3.5 h-3.5" /> Apply
           </Button>
         </div>
       </form>
