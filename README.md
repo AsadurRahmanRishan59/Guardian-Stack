@@ -4,8 +4,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-In%20Development-orange?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Backend-Spring%20Boot%203-6DB33F?style=for-the-badge&logo=spring" />
-  <img src="https://img.shields.io/badge/Frontend-Next.js%2015-black?style=for-the-badge&logo=next.js" />
+  <img src="https://img.shields.io/badge/Backend-Spring%20Boot%204-6DB33F?style=for-the-badge&logo=spring" />
+  <img src="https://img.shields.io/badge/Frontend-Next.js%2016-black?style=for-the-badge&logo=next.js" />
   <img src="https://img.shields.io/badge/Database-PostgreSQL-316192?style=for-the-badge&logo=postgresql" />
   <img src="https://img.shields.io/badge/Audit-Hibernate%20Envers-59666C?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Observability-ELK%20Stack-005571?style=for-the-badge&logo=elastic" />
