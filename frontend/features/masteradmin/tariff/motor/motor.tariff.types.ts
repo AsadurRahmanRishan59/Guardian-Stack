@@ -1,127 +1,86 @@
-import { MotorTariffRequestFormValues } from "./motor.tariff.schema";
+// features/masteradmin/tariff/motor/motor_tariff_types.ts
 
-type MotorTariffType =
-  "Private Vehicle"
+export type MotorTariffType =
+  | "Private Vehicle"
   | "Motor Cycle"
   | "Commercial Vehicle";
 
-type MotorTariffGroupOfVehicle =
-  "Passenger Vehicle/Goods Carrying"
-  | "Trailer"
-  | "Class A Goods Carrying Vehicles"
-  | "Class B(1,0) Goods Carrying Vehicles"
-  | "Class B(1,0) Passenger Carrying Vehicles"
-  | "Class B(2,0) Passenger Carrying Vehicles"
-  | "Class C Passenger Carrying Vehicles"
-  | "Class D Miscellaneous & Special Types of Vehicles"
-  | "Auto Cycles or Mechanically Assisted Pedal Cycles"
-  | "MotorCycle/Scooter";
+export type SortOption =
+  | "tariffKey"
+  | "tariffType"
+  | "groupOfVehicle"
+  | "typeOfVehicle"
+  | "category";
 
+// ── Matches backend: MotorTariffShortView (table row) ─────────────────────────
+export interface MotorTariffShortView {
+  tariffKey: number;
+  tariffType: string;
+  groupOfVehicle: string;
+  typeOfVehicle: string;
+  category: string;
+  ownDpBasic: number;
+  fullInsValue: number;
+  actLiability: number;
+  isActive: boolean;
+}
 
-// import { AgentRequestFormValues } from "./agent.schema";
-
-export interface MotorTariff {
-  tariffKey: number,
-  tariffType: MotorTariffType,
-  groupOfVehicle: MotorTariffGroupOfVehicle,
-  typeOfVehicle: string,
-  category: string,
-  ownDpBasic: number,
-  fullInsValue: number,
-  actLiability: number,
-  fire: number,
-  theft: number,
-  cyclone: number,
-  earthquake: number,
-  others: number,
+// ── Matches backend: MotorTariffFullDTO (view modal) ──────────────────────────
+export interface MotorTariffFullDTO {
+  tariffKey: number;
+  tariffType: string;
+  groupOfVehicle: string;
+  typeOfVehicle: string;
+  category: string;
+  ownDpBasic: number;
+  fullInsValue: number;
+  actLiability: number;
+  fire: number;
+  theft: number;
+  cyclone: number;
+  earthquake: number;
   isActive: boolean;
   createdAt: string;
-  lastUpdatedAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
 }
 
-export interface MotorTariffRequest {
-  tariffType: MotorTariffType,
-  groupOfVehicle: MotorTariffGroupOfVehicle,
-  typeOfVehicle: string,
-  category: string,
-  ownDpBasic: number,
-  fullInsValue: number,
-  actLiability: number,
-  fire: number,
-  theft: number,
-  cyclone: number,
-  earthquake: number,
-  others: number,
+// ── Matches backend: MotorTariffDTO (create / update body) ────────────────────
+export interface MotorTariffDTO {
+  tariffKey?: number | null;
+  tariffType: string;
+  groupOfVehicle: string;
+  typeOfVehicle: string;
+  category: string;
+  ownDpBasic: number;
+  fullInsValue: number;
+  actLiability: number;
+  fire: number;
+  theft: number;
+  cyclone: number;
+  earthquake: number;
   isActive: boolean;
 }
 
-export interface MotorTariffAdminView {
-  tariffKey: number,
-  tariffType: MotorTariffType,
-  groupOfVehicle: MotorTariffGroupOfVehicle,
-  typeOfVehicle: string,
-  category: string,
-  ownDpBasic: number,
-  fullInsValue: number,
-  actLiability: number,
-  isActive: boolean;
-}
-
-type SortOption = "tariffKey" | "tariffType" | "groupOfVehicle" | "typeOfVehicle" | "category"
-
-
-// export interface MotorTariffSearchCriteria {
-//   // Search
-//   tariffKey?: number,
-
-//   // Filters
-//   tariffType?: MotorTariffType,
-//   groupOfVehicle?: MotorTariffGroupOfVehicle,
-//   typeOfVehicle?: string,
-//   category?: string,
-//   isActive?: boolean;
-
-//   // Pagination
-//   page?: number,
-//   size?: number,
-
-//   // Sorting
-//   sortBy?: SortOption,
-//   sortDirection?: 'asc' | 'desc';
-// }
-
-
+// ── Matches backend: MotorTariffMasterAdminViewSearchCriteria ─────────────────
 export interface MotorTariffSearchCriteria {
-  // Search
-  tariffKey?: number,
-
-  // Filters
-  tariffType?: string,
-  groupOfVehicle?: string,
-  typeOfVehicle?: string,
-  category?: string,
+  tariffKey?: number;
+  tariffType?: string;
+  groupOfVehicle?: string;
+  typeOfVehicle?: string;
+  category?: string;
   isActive?: boolean;
-
-  // Pagination
-  page?: number,
-  size?: number,
-
-  // Sorting
-  sortBy?: SortOption,
-  sortDirection?: 'asc' | 'desc';
+  page?: number;
+  size?: number;
+  sortBy?: SortOption;
+  sortDirection?: "asc" | "desc";
 }
 
-export interface MotorHierarchy{
-level?:string,
-tariffType?:string,
-groupOfVehicle?:string,
-typeOfVehicle?:string,
-}
-
-export interface MotorTariffFormProps {
-  onSubmit: (data: MotorTariffRequestFormValues) => void;
-  isLoading?: boolean;
-  initialData?: MotorTariff | null;
-  mode?: "create" | "edit";
-  serverErrors?: Record<string, string> | string[]; // Support both formats
+// ── Hierarchy query params ─────────────────────────────────────────────────────
+export interface MotorHierarchyParams {
+  level: "tariffType" | "groupOfVehicle" | "typeOfVehicle" | "category";
+  tariffType?: string;
+  groupOfVehicle?: string;
+  typeOfVehicle?: string;
 }

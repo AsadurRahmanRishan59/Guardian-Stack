@@ -1,258 +1,105 @@
+import { z } from "zod";
 
-// // Improved type definitions with better constraints
-// type MotorTariffHierarchy = typeof motorTariffHierarchy;
-// type TariffType = keyof MotorTariffHierarchy;
-// type GroupOfVehicle<T extends TariffType> = keyof MotorTariffHierarchy[T];
-// type TypeOfVehicle<T extends TariffType, G extends GroupOfVehicle<T>> =
-//   keyof MotorTariffHierarchy[T][G];
-  
-// type Category<
-//   T extends TariffType,
-//   G extends GroupOfVehicle<T>,
-//   V extends TypeOfVehicle<T, G>
-// > = MotorTariffHierarchy[T][G][V] extends (infer U)[]
-//   ? U extends string[]
-//   ? U[number]  // for nested arrays, unwrap one more level
-//   : U         // for flat string arrays
-//   : never;
+export const motorTariffSchema = z.object({
+  tariffKey: z.number().optional(),
 
-// // Enhanced type guards with better error handling
-// export function isTariffType(value: unknown): value is TariffType {
-//   return typeof value === 'string' && value in motorTariffHierarchy;
-// }
+  tariffType: z
+    .string()
+    .min(1, "Tariff Type is required (e.g., Private Vehicle, Motor Cycle)")
+    .max(50, "Tariff Type must not exceed 50 characters")
+    .regex(
+      /^(Private Vehicle|Motor Cycle|Commercial Vehicle)$/,
+      "Tariff type must be one of: Private Vehicle, Motor Cycle, Commercial Vehicle"
+    ),
 
-// export function isGroupOfVehicle<T extends TariffType>(
-//   tariffType: T,
-//   value: unknown
-// ): value is GroupOfVehicle<T> {
-//   return typeof value === 'string' && value in motorTariffHierarchy[tariffType];
-// }
+  groupOfVehicle: z
+    .string()
+    .min(1, "Vehicle Group is required")
+    .max(500, "Vehicle Group description is too long"),
 
-// export function isTypeOfVehicle<T extends TariffType, G extends GroupOfVehicle<T>>(
-//   tariffType: T,
-//   group: G,
-//   value: unknown
-// ): value is TypeOfVehicle<T, G> {
-//   return typeof value === 'string' && value in motorTariffHierarchy[tariffType][group];
-// }
+  typeOfVehicle: z
+    .string()
+    .min(1, "Vehicle Type description is mandatory")
+    .max(500, "Vehicle Type description is too long"),
 
-// // export function isValidCategory<T extends TariffType, G extends GroupOfVehicle<T>>(
-// //   tariffType: T,
-// //   group: G,
-// //   type: TypeOfVehicle<T, G>,
-// //   value: unknown
-// // ): value is string {
-// //   if (typeof value !== 'string') return false;
-// //   const categories = motorTariffHierarchy[tariffType][group][type].flat();
-// //   return categories.includes(value);
-// // }
+  category: z
+    .string()
+    .min(1, "Category or CC Range must be specified")
+    .max(500, "Category description is too long"),
 
-// export function isValidCategory<
-//   T extends TariffType,
-//   G extends GroupOfVehicle<T>,
-//   V extends TypeOfVehicle<T, G>
-// >(tariffType: T, group: G, type: V, value: unknown): value is Category<T, G, V> {
-//   if (typeof value !== 'string') return false;
-//   const categories = motorTariffHierarchy[tariffType][group][type].flat();
-//   return categories.includes(value);
-// }
-// // Create the tariff type options array
-// const TARIFF_TYPES = ["Private Vehicle", "Motor Cycle", "Commercial Vehicle"] as const;
+  ownDpBasic: z.coerce.number().min(0, "Basic premium must be 0 or a positive value"),
 
-// // Create enums for better type safety
-// const TariffTypeEnum = z.enum(TARIFF_TYPES);
-// const SortByEnum = z.enum(['tariffKey', 'tariffType', 'groupOfVehicle', 'typeOfVehicle', 'category']);
-// const SortDirectionEnum = z.enum(['asc', 'desc']);
+  fullInsValue: z.coerce.number().min(0, "Insurance rate cannot be negative").max(100, "Insurance rate cannot exceed 100%"),
 
-// // Enhanced schema with better validation and error messages
-// export const motorTariffFilterSchema = z.object({
-//   // Search
-//   tariffKey: z.number().int().min(0, "Tariff key must be a non-negative integer").optional(),
+  actLiability: z.coerce.number().min(0, "Act Liability cannot be negative"),
 
-//   // Hierarchical filters
-//   tariffType: z.string().optional(),
-//   groupOfVehicle: z.string().optional(),
-//   typeOfVehicle: z.string().optional(),
-//   category: z.string().optional(),
+  fire: z.coerce.number().min(0, "Fire rate cannot be negative").max(100, "Fire rate cannot exceed 100%"),
 
-//   // Other filters
-//   isActive: z.boolean().optional(),
+  theft: z.coerce.number().min(0, "Theft rate cannot be negative").max(100, "Theft rate cannot exceed 100%"),
 
-//   // Pagination with better defaults
-//   page: z.number().int().min(0, "Page must be non-negative").default(0).optional(),
-//   size: z.number().int().min(1, "Size must be at least 1").max(100, "Size cannot exceed 100").default(20).optional(),
+  cyclone: z.coerce.number().min(0, "Cyclone rate cannot be negative").max(100, "Cyclone rate cannot exceed 100%"),
 
-//   // Sorting
-//   sortBy: SortByEnum.default('tariffKey').optional(),
-//   sortDirection: SortDirectionEnum.default('asc').optional(),
-// })
-//   .superRefine((data, ctx) => {
-//     // Enhanced validation with better error messages
+  earthquake: z.coerce.number().min(0, "Earthquake rate cannot be negative").max(100, "Earthquake rate cannot exceed 100%"),
 
-//     // Validate tariffType
-//     if (data.tariffType && !isTariffType(data.tariffType)) {
-//       ctx.addIssue({
-//         code: z.ZodIssueCode.custom,
-//         message: `Invalid tariff type: "${data.tariffType}". Must be one of: ${Object.keys(motorTariffHierarchy).join(', ')}`,
-//         path: ["tariffType"]
-//       });
-//       return; // Early return to prevent cascading errors
-//     }
+  isActive: z.boolean(),
+});
 
-//     // Validate groupOfVehicle belongs to tariffType
-//     if (data.tariffType && data.groupOfVehicle) {
-//       const tariffType = data.tariffType as TariffType;
+export type MotorTariffFormValues = {
+  tariffKey?: number;
+  tariffType: string;
+  groupOfVehicle: string;
+  typeOfVehicle: string;
+  category: string;
+  ownDpBasic: number;
+  fullInsValue: number;
+  actLiability: number;
+  fire: number;
+  theft: number;
+  cyclone: number;
+  earthquake: number;
+  isActive: boolean;
+};
 
-//       if (!isGroupOfVehicle(tariffType, data.groupOfVehicle)) {
-//         const validGroups = Object.keys(motorTariffHierarchy[tariffType]);
-//         ctx.addIssue({
-//           code: z.ZodIssueCode.custom,
-//           message: `Group "${data.groupOfVehicle}" is not valid for tariff type "${data.tariffType}". Valid groups: ${validGroups.join(', ')}`,
-//           path: ["groupOfVehicle"]
-//         });
-//         return;
-//       }
 
-//       // Validate typeOfVehicle belongs to groupOfVehicle
-//       if (data.typeOfVehicle) {
-//         const group = data.groupOfVehicle as GroupOfVehicle<typeof tariffType>;
+export const motorTariffFilterSchema = z.object({
+  // Search
+  tariffKey: z.coerce
+    .number()
+    .min(1, "Tariff Key must be a positive number")
+    .optional(),
 
-//         if (!isTypeOfVehicle(tariffType, group, data.typeOfVehicle)) {
-//           const validTypes = Object.keys(motorTariffHierarchy[tariffType][group]);
-//           ctx.addIssue({
-//             code: z.ZodIssueCode.custom,
-//             message: `Type "${data.typeOfVehicle}" is not valid for group "${data.groupOfVehicle}". Valid types: ${validTypes.join(', ')}`,
-//             path: ["typeOfVehicle"]
-//           });
-//           return;
-//         }
+  // Filters
+  tariffType: z.string().optional(),
+  groupOfVehicle: z.string().optional(),
+  typeOfVehicle: z.string().optional(),
+  category: z.string().optional(),
+  isActive: z.coerce.boolean().optional(),
 
-//         // Validate category belongs to typeOfVehicle
-//         if (data.category) {
-//           const type = data.typeOfVehicle as TypeOfVehicle<typeof tariffType, typeof group>;
+  // Pagination
+  page: z.coerce
+    .number()
+    .min(0, "Page number must be non-negative")
+    .default(0),
 
-//           if (!isValidCategory(tariffType, group, type, data.category)) {
-//             const validCategories = motorTariffHierarchy[tariffType][group][type].flat();
-//             ctx.addIssue({
-//               code: z.ZodIssueCode.custom,
-//               message: `Category "${data.category}" is not valid for type "${data.typeOfVehicle}". Valid categories: ${validCategories.join(', ')}`,
-//               path: ["category"]
-//             });
-//           }
-//         }
-//       }
-//     }
+  size: z.coerce
+    .number()
+    .min(1, "Page size must be at least 1")
+    .default(10),
 
-//     // Validate that dependent fields are not provided without their parents
-//     if (data.groupOfVehicle && !data.tariffType) {
-//       ctx.addIssue({
-//         code: z.ZodIssueCode.custom,
-//         message: "Group of vehicle cannot be specified without tariff type",
-//         path: ["groupOfVehicle"]
-//       });
-//     }
+  // Sorting
+  sortBy: z
+    .enum([
+      "tariffKey",
+      "tariffType",
+      "groupOfVehicle",
+      "typeOfVehicle",
+      "category",
+    ])
+    .default("tariffKey"),
 
-//     if (data.typeOfVehicle && (!data.tariffType || !data.groupOfVehicle)) {
-//       ctx.addIssue({
-//         code: z.ZodIssueCode.custom,
-//         message: "Type of vehicle cannot be specified without tariff type and group of vehicle",
-//         path: ["typeOfVehicle"]
-//       });
-//     }
+  sortDirection: z.enum(["asc", "desc"]).default("asc"),
+});
 
-//     if (data.category && (!data.tariffType || !data.groupOfVehicle || !data.typeOfVehicle)) {
-//       ctx.addIssue({
-//         code: z.ZodIssueCode.custom,
-//         message: "Category cannot be specified without tariff type, group of vehicle, and type of vehicle",
-//         path: ["category"]
-//       });
-//     }
-//   });
-
-// export type MotorTariffFilterFormValues = z.infer<typeof motorTariffFilterSchema>;
-
-// // Enhanced helper functions with better error handling
-// export function getGroupsForTariffType(tariffType: TariffType): GroupOfVehicle<typeof tariffType>[] {
-//   if (!isTariffType(tariffType)) {
-//     throw new Error(`Invalid tariff type: ${tariffType}`);
-//   }
-//   return Object.keys(motorTariffHierarchy[tariffType]) as GroupOfVehicle<typeof tariffType>[];
-// }
-
-// export function getTypesForGroup<T extends TariffType>(
-//   tariffType: T,
-//   group: GroupOfVehicle<T>
-// ): TypeOfVehicle<T, typeof group>[] {
-//   if (!isTariffType(tariffType)) {
-//     throw new Error(`Invalid tariff type: ${tariffType}`);
-//   }
-//   if (!isGroupOfVehicle(tariffType, group)) {
-//     throw new Error(`Invalid group: ${String(group)} for tariff type: ${tariffType}`);
-//   }
-
-//   const groupData = motorTariffHierarchy[tariffType][group];
-//   return Object.keys(groupData) as TypeOfVehicle<T, typeof group>[];
-// }
-
-// export function getCategoriesForType<T extends TariffType, G extends GroupOfVehicle<T>>(
-//   tariffType: T,
-//   group: G,
-//   type: TypeOfVehicle<T, G>
-// ): string[] {
-//   if (!isTariffType(tariffType)) {
-//     throw new Error(`Invalid tariff type: ${tariffType}`);
-//   }
-//   if (!isGroupOfVehicle(tariffType, group)) {
-//     throw new Error(`Invalid group: ${String(group)} for tariff type: ${tariffType}`);
-//   }
-//   if (!isTypeOfVehicle(tariffType, group, type)) {
-//     throw new Error(`Invalid type: ${String(type)} for group: ${String(group)}`);
-//   }
-
-//   const typeData = motorTariffHierarchy[tariffType][group][type];
-//   return typeData.flat();
-// }
-
-// // Additional utility functions
-// export function getAllTariffTypes(): string[] {
-//   return TARIFF_TYPES.slice();
-// }
-
-// export function validateHierarchy(
-//   tariffType?: string,
-//   group?: string,
-//   type?: string,
-//   category?: string
-// ): { isValid: boolean; errors: string[] } {
-//   const errors: string[] = [];
-
-//   if (!tariffType) {
-//     return { isValid: true, errors: [] };
-//   }
-
-//   if (!isTariffType(tariffType)) {
-//     errors.push(`Invalid tariff type: ${tariffType}`);
-//     return { isValid: false, errors };
-//   }
-
-//   if (group && !isGroupOfVehicle(tariffType, group)) {
-//     errors.push(`Invalid group: ${group} for tariff type: ${tariffType}`);
-//   }
-
-//   if (type && group && isGroupOfVehicle(tariffType, group)) {
-//     if (!isTypeOfVehicle(tariffType, group, type)) {
-//       errors.push(`Invalid type: ${type} for group: ${group}`);
-//     }
-//   }
-
-//   if (category && type && group &&
-//     isGroupOfVehicle(tariffType, group) &&
-//     isTypeOfVehicle(tariffType, group, type)) {
-//     if (!isValidCategory(tariffType, group, type, category)) {
-//       errors.push(`Invalid category: ${category} for type: ${type}`);
-//     }
-//   }
-
-//   return { isValid: errors.length === 0, errors };
-// }
-
+export type MotorTariffFilterFormValues = z.infer<
+  typeof motorTariffFilterSchema
+>;

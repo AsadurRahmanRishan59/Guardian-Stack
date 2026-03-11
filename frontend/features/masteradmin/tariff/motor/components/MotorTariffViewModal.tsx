@@ -1,3 +1,4 @@
+// features/masteradmin/tariff/motor/MotorTariffViewModal.tsx
 "use client";
 
 import React from "react";
@@ -6,338 +7,334 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogBody,
-  DialogClose,
-} from "@/components/ui/custom-dialog";
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   Car,
-  Shield,
-  DollarSign,
-  Zap,
-  Flame,
-  CloudRain,
-  Building,
   CheckCircle,
   XCircle,
   Loader2,
-  FileText,
-  Clock,
+  Calendar,
+  Percent,
+  DollarSign,
+  ShieldCheck,
+  FlameKindling,
+  Wind,
+  Mountain,
 } from "lucide-react";
-import { useGetMotorTariffByTariffKey } from "../motor.tariff.react-query";
+import { cn } from "@/lib/utils";
+import { useMotorTariffById } from "../motor.tariff.react-query";
 
-export interface MotorTariffType {
-  // Define based on your actual type structure
-  id: number;
-  name: string;
-}
-
-export interface MotorTariffGroupOfVehicle {
-  // Define based on your actual group structure
-  id: number;
-  name: string;
-}
-
-export interface MotorTariff {
+interface MotorTariffViewModalProps {
   tariffKey: number;
-  tariffType: MotorTariffType;
-  groupOfVehicle: MotorTariffGroupOfVehicle;
-  typeOfVehicle: string;
-  category: string;
-  ownDpBasic: number;
-  fullInsValue: number;
-  actLiability: number;
-  fire: number;
-  theft: number;
-  cyclone: number;
-  earthquake: number;
-  others: number;
-  isActive: boolean;
-  createdAt: string;
-  lastUpdatedAt: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-interface MotorTariffModalProps {
-  tariffKey: number;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+function formatDate(d?: string | null): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-export default function MotorTariffViewModal({
-  tariffKey,
-  open = false,
-  onOpenChange = () => {},
-}: MotorTariffModalProps) {
-  const {
-    data: motorTariffData,
-    isLoading,
-    error,
-  } = useGetMotorTariffByTariffKey(open && tariffKey ? tariffKey : undefined);
-
-  const formatDateTime = (dateString?: string) => {
-    if (!dateString) return "";
-    return new Date(dateString).toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "BDT",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="full" className="max-h-[90vh] overflow-y-auto">
-        <DialogClose />
-
-        {isLoading ? (
-          <DialogBody>
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-3 text-lg">
-                Loading motor tariff details...
-              </span>
-            </div>
-          </DialogBody>
-        ) : error ? (
-          <DialogBody>
-            <div className="flex items-center justify-center p-8 text-center">
-              <p className="text-red-500 text-lg mb-2">
-                Error loading motor tariff details
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {error.message || "Please try again later"}
-              </p>
-            </div>
-          </DialogBody>
-        ) : motorTariffData ? (
-          <>
-            <DialogHeader>
-              <div className="flex items-start gap-4">
-                <Car className="h-6 w-6 text-primary mt-1 flex-shrink-0" />
-                <div className="flex-grow">
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-                    <div>
-                      <DialogTitle className="text-2xl font-bold">
-                        {motorTariffData.typeOfVehicle}
-                      </DialogTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Tariff Key: #{motorTariffData.tariffKey}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Category: {motorTariffData.category}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">MOTOR TARIFF</Badge>
-                      <Badge
-                        variant={
-                          motorTariffData.isActive ? "default" : "destructive"
-                        }
-                        className={
-                          motorTariffData.isActive
-                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
-                            : "bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/20"
-                        }
-                      >
-                        {motorTariffData.isActive ? (
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                        ) : (
-                          <XCircle className="w-3 h-3 mr-1" />
-                        )}
-                        {motorTariffData.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 mt-3">
-                    <Badge variant="outline">
-                      <Building className="w-3 h-3 mr-1" />
-                      {motorTariffData.groupOfVehicle}
-                    </Badge>
-                    <Badge variant="outline">
-                      <FileText className="w-3 h-3 mr-1" />
-                      {motorTariffData.tariffType}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <DialogBody>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-6">
-                  <Section
-                    title="Basic Information"
-                    icon={<Car className="h-4 w-4" />}
-                  >
-                    <Info
-                      label="Vehicle Type"
-                      value={motorTariffData.typeOfVehicle}
-                    />
-                    <Info label="Category" value={motorTariffData.category} />
-                    <Info
-                      label="Group of Vehicle"
-                      value={motorTariffData.groupOfVehicle}
-                    />
-                    <Info
-                      label="Tariff Type"
-                      value={motorTariffData.tariffType}
-                    />
-                  </Section>
-
-                  <Section
-                    title="Basic Coverage"
-                    icon={<Shield className="h-4 w-4" />}
-                  >
-                    <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <Info
-                        label="Own Damage Basic"
-                        value={formatCurrency(motorTariffData.ownDpBasic)}
-                        className="font-medium text-lg"
-                      />
-                      <Info
-                        label="Full Insurance Value"
-                        value={formatCurrency(motorTariffData.fullInsValue)}
-                        className="font-medium"
-                      />
-                      <Info
-                        label="Act Liability"
-                        value={formatCurrency(motorTariffData.actLiability)}
-                        className="font-medium"
-                      />
-                    </div>
-                  </Section>
-                </div>
-
-                <div className="space-y-6">
-                  <Section
-                    title="Risk Coverage Premiums"
-                    icon={<DollarSign className="h-4 w-4" />}
-                  >
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-orange-50 dark:bg-orange-900/30 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Flame className="w-4 h-4 text-orange-600" />
-                          <span className="text-sm font-medium">Fire</span>
-                        </div>
-                        <p className="text-lg font-semibold">
-                          {formatCurrency(motorTariffData.fire)}
-                        </p>
-                      </div>
-
-                      <div className="bg-purple-50 dark:bg-purple-900/30 p-3 rounded-lg border border-purple-200 dark:border-purple-800">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Shield className="w-4 h-4 text-purple-600" />
-                          <span className="text-sm font-medium">Theft</span>
-                        </div>
-                        <p className="text-lg font-semibold">
-                          {formatCurrency(motorTariffData.theft)}
-                        </p>
-                      </div>
-
-                      <div className="bg-cyan-50 dark:bg-cyan-900/30 p-3 rounded-lg border border-cyan-200 dark:border-cyan-800">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CloudRain className="w-4 h-4 text-cyan-600" />
-                          <span className="text-sm font-medium">Cyclone</span>
-                        </div>
-                        <p className="text-lg font-semibold">
-                          {formatCurrency(motorTariffData.cyclone)}
-                        </p>
-                      </div>
-
-                      <div className="bg-amber-50 dark:bg-amber-900/30 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Zap className="w-4 h-4 text-amber-600" />
-                          <span className="text-sm font-medium">
-                            Earthquake
-                          </span>
-                        </div>
-                        <p className="text-lg font-semibold">
-                          {formatCurrency(motorTariffData.earthquake)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-gray-900/30 p-4 rounded-lg border border-gray-200 dark:border-gray-800 mt-4">
-                      <Info
-                        label="Others"
-                        value={formatCurrency(motorTariffData.others)}
-                        className="font-medium text-lg"
-                      />
-                    </div>
-                  </Section>
-
-                  <Section
-                    title="System Information"
-                    icon={<Clock className="h-4 w-4" />}
-                  >
-                    <Info
-                      label="Created At"
-                      value={formatDateTime(motorTariffData.createdAt)}
-                    />
-                    <Info
-                      label="Last Updated"
-                      value={formatDateTime(motorTariffData.lastUpdatedAt)}
-                    />
-                  </Section>
-                </div>
-              </div>
-            </DialogBody>
-          </>
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
+function formatMoney(v: number): string {
+  return new Intl.NumberFormat("en-BD", { minimumFractionDigits: 2 }).format(v);
 }
 
-function Section({
+function formatRate(v: number): string {
+  return `${v.toFixed(2)}%`;
+}
+
+// ── Small card components ──────────────────────────────────────────────────────
+function InfoCard({
   title,
-  children,
   icon,
+  children,
 }: {
   title: string;
-  children: React.ReactNode;
   icon?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        <h3 className="font-semibold text-base text-foreground border-b border-border pb-1 w-full">
+    <div className="rounded-gs border border-gs-line overflow-hidden">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-surface-2 border-b border-gs-line">
+        {icon && <span className="text-t3">{icon}</span>}
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-t3">
           {title}
         </h3>
       </div>
-      <div className="space-y-3 pl-1">{children}</div>
+      <div className="p-3">{children}</div>
     </div>
   );
 }
 
-function Info({
+function InfoRow({
+  icon,
   label,
   value,
-  className = "",
 }: {
+  icon?: React.ReactNode;
   label: string;
   value: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <div className="flex flex-col">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`text-sm ${className}`}>
-        {value || (
-          <span className="text-muted-foreground/70">Not provided</span>
-        )}
-      </p>
+    <div className="flex items-start gap-2.5">
+      {icon && <div className="mt-0.5 shrink-0 text-t3">{icon}</div>}
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-t4 uppercase tracking-wide mb-0.5">{label}</p>
+        <div className="text-sm text-t1">{value}</div>
+      </div>
     </div>
+  );
+}
+
+function RateMetric({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="p-2.5 rounded-gs border border-gs-line bg-surface-2/40 flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-t3">
+        {icon}
+        <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      <p className="text-base font-bold text-t1">{formatRate(value)}</p>
+    </div>
+  );
+}
+
+export function MotorTariffViewModal({
+  tariffKey,
+  open,
+  onOpenChange,
+}: MotorTariffViewModalProps) {
+  const [queryEnabled, setQueryEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open && tariffKey) setQueryEnabled(true);
+  }, [open, tariffKey]);
+
+  const { data, isLoading, error } = useMotorTariffById(
+    queryEnabled ? tariffKey : undefined
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[95vh] p-0 gap-0 overflow-hidden border-gs-line bg-surface-card">
+
+        {/* ── Fixed header ── */}
+        <DialogHeader className="px-4 pt-4 pb-3 border-b border-gs-line bg-surface-2/60">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 w-11 h-11 rounded-gs bg-brand flex items-center justify-center shadow-sm">
+              <Car className="h-5 w-5 text-white" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <DialogTitle className="text-base font-bold font-head text-t1 leading-tight">
+                    {isLoading ? (
+                      <span className="text-t4">Loading…</span>
+                    ) : data ? (
+                      data.typeOfVehicle
+                    ) : (
+                      "Tariff Details"
+                    )}
+                  </DialogTitle>
+                  {data && (
+                    <div className="mt-0.5 space-y-0.5">
+                      <p className="text-xs text-t3">{data.groupOfVehicle}</p>
+                      <p className="text-[10px] text-t4 font-mono">
+                        Tariff #{data.tariffKey}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {data && (
+                  <div className="flex flex-wrap gap-1.5 shrink-0">
+                    <Badge className="text-[10px] bg-surface-3 text-t2 border-gs-line">
+                      {data.tariffType}
+                    </Badge>
+                    <Badge
+                      className={cn(
+                        "text-[10px] gap-1",
+                        data.isActive
+                          ? "bg-gs-green-bg text-gs-green border-transparent"
+                          : "bg-destructive/10 text-destructive border-destructive/20"
+                      )}
+                    >
+                      {data.isActive ? (
+                        <CheckCircle className="w-2.5 h-2.5" />
+                      ) : (
+                        <XCircle className="w-2.5 h-2.5" />
+                      )}
+                      {data.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {data && (
+                <p className="mt-1.5 text-xs text-t4 bg-surface-3 border border-gs-line rounded px-2 py-1 inline-block">
+                  {data.category}
+                </p>
+              )}
+            </div>
+          </div>
+        </DialogHeader>
+
+        {/* ── Body ── */}
+        <ScrollArea className="h-[calc(95vh-130px)]">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-12">
+              <div className="text-center space-y-2">
+                <Loader2 className="h-8 w-8 animate-spin text-brand mx-auto" />
+                <p className="text-sm text-t3">Loading tariff details…</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center p-12 text-center gap-3">
+              <XCircle className="h-12 w-12 text-destructive" />
+              <p className="text-destructive font-semibold text-sm">
+                Error loading tariff
+              </p>
+              <p className="text-xs text-t4">
+                {(error as { message?: string }).message ?? "Please try again."}
+              </p>
+            </div>
+          ) : data ? (
+            <div className="p-4 space-y-4">
+
+              {/* ── Premium summary strip ── */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  {
+                    label: "Own Damage Basic",
+                    value: `৳ ${formatMoney(data.ownDpBasic)}`,
+                    icon: <DollarSign className="w-4 h-4 text-brand" />,
+                  },
+                  {
+                    label: "Full Insurance Value",
+                    value: formatRate(data.fullInsValue),
+                    icon: <Percent className="w-4 h-4 text-brand" />,
+                  },
+                  {
+                    label: "Act Liability",
+                    value: `৳ ${formatMoney(data.actLiability)}`,
+                    icon: <ShieldCheck className="w-4 h-4 text-brand" />,
+                  },
+                ].map(({ label, value, icon }) => (
+                  <div
+                    key={label}
+                    className="rounded-gs border border-gs-line bg-surface-2/50 p-3 flex flex-col gap-1"
+                  >
+                    <div className="flex items-center gap-1.5 text-t3 mb-1">
+                      {icon}
+                      <span className="text-[10px] font-semibold uppercase tracking-wide">
+                        {label}
+                      </span>
+                    </div>
+                    <p className="text-lg font-bold text-t1">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Risk rates ── */}
+              <InfoCard
+                title="Risk Rates"
+                icon={<FlameKindling className="h-3.5 w-3.5" />}
+              >
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <RateMetric
+                    label="Fire"
+                    value={data.fire}
+                    icon={<FlameKindling className="w-3.5 h-3.5" />}
+                  />
+                  <RateMetric
+                    label="Theft"
+                    value={data.theft}
+                    icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                  />
+                  <RateMetric
+                    label="Cyclone"
+                    value={data.cyclone}
+                    icon={<Wind className="w-3.5 h-3.5" />}
+                  />
+                  <RateMetric
+                    label="Earthquake"
+                    value={data.earthquake}
+                    icon={<Mountain className="w-3.5 h-3.5" />}
+                  />
+                </div>
+              </InfoCard>
+
+              {/* ── Classification & Audit ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <InfoCard
+                  title="Vehicle Classification"
+                  icon={<Car className="h-3.5 w-3.5" />}
+                >
+                  <div className="space-y-3">
+                    <InfoRow label="Tariff Type" value={data.tariffType} />
+                    <Separator className="bg-gs-line" />
+                    <InfoRow label="Vehicle Group" value={data.groupOfVehicle} />
+                    <Separator className="bg-gs-line" />
+                    <InfoRow label="Vehicle Type" value={data.typeOfVehicle} />
+                    <Separator className="bg-gs-line" />
+                    <InfoRow label="Category / CC" value={data.category} />
+                  </div>
+                </InfoCard>
+
+                <InfoCard
+                  title="Audit Trail"
+                  icon={<Calendar className="h-3.5 w-3.5" />}
+                >
+                  <div className="space-y-3">
+                    <InfoRow
+                      icon={<Calendar className="w-3.5 h-3.5 text-gs-green" />}
+                      label="Created"
+                      value={
+                        <div>
+                          <p className="text-sm text-t1">{formatDate(data.createdAt)}</p>
+                          {data.createdBy && (
+                            <p className="text-[10px] text-t4">by {data.createdBy}</p>
+                          )}
+                        </div>
+                      }
+                    />
+                    <Separator className="bg-gs-line" />
+                    <InfoRow
+                      icon={<Calendar className="w-3.5 h-3.5 text-t3" />}
+                      label="Last Updated"
+                      value={
+                        <div>
+                          <p className="text-sm text-t1">{formatDate(data.updatedAt)}</p>
+                          {data.updatedBy && (
+                            <p className="text-[10px] text-t4">by {data.updatedBy}</p>
+                          )}
+                        </div>
+                      }
+                    />
+                  </div>
+                </InfoCard>
+              </div>
+            </div>
+          ) : null}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 }

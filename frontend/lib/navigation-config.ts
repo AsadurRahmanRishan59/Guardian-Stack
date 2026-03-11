@@ -72,7 +72,7 @@ export const navigationConfig: NavigationSection[] = [
                 icon: Car,
                 roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
                 items: [
-                  { title: "Rate Table", url: "/admin/master-data/tariffs/motor/rate-table", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+                  { title: "Rate Table", url: "/admin/master-data/tariffs/motor", icon: BarChart3, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                   { title: "Policy Terms", url: "/admin/master-data/tariffs/motor/policy-terms", icon: FileText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                   { title: "Configuration", url: "/admin/master-data/tariffs/motor/config", icon: Settings2, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
                 ],

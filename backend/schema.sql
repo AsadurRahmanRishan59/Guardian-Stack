@@ -710,3 +710,14 @@ CREATE TABLE gs_motor_tariff_aud
 
     PRIMARY KEY (tariff_key, rev)
 );
+
+-- 1. Permissions for the main Motor Tariff table
+-- Allows Admins to Create, Read, and Update tariffs
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.gs_motor_tariff TO guardian_app_user;
+
+-- 2. Permissions for the Sequence (Required for SERIAL/Identity primary keys)
+GRANT USAGE, SELECT ON SEQUENCE public.gs_motor_tariff_tariff_key_seq TO guardian_app_user;
+
+-- 3. Permissions for the Hibernate Envers Audit table
+-- Audit tables should be append-only (INSERT) and searchable (SELECT)
+GRANT SELECT, INSERT ON TABLE public.gs_motor_tariff_aud TO guardian_app_user;

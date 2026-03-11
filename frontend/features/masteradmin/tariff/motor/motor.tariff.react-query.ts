@@ -1,188 +1,173 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { createMotorTariff, deleteMotorTariff, getMotorHierarchy, getMotorTariffByTariffKey, getMotorTariffs, patchMotorTariffRates, updateMotorTariff } from './motor.tariff.service';
-import { MotorTariffRequest, MotorTariff } from './motor.tariff.types';
-import { MotorTariffFilterFormValues } from './motor.tariff.schema';
-import { useMemo } from 'react';
+// features/masteradmin/tariff/motor/motor_tariff_react_query.ts
+import { useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
+import {
+  getMotorTariffs,
+  getMotorTariffById,
+  createMotorTariff,
+  updateMotorTariff,
+  deleteMotorTariff,
+  getMotorHierarchy,
+} from "./motor.tariff.service";
+import type { MotorTariffDTO, MotorTariffSearchCriteria } from "./motor.tariff.types";
+import type { MotorTariffFilterFormValues } from "./motor.tariff.schema";
 
-// Enhanced hook for paginated motorTariffs with search/filter
-export function useQueryMotorTariffs(searchCriteria?: MotorTariffFilterFormValues) {
-    const { data, isLoading, error, refetch } = useQuery({
-        queryKey: ['motorTariffs', 'paginated', { criteria: searchCriteria }],
-        queryFn: async () => {
-            const response = await getMotorTariffs(searchCriteria);
-            return response ?? null; // return full response (including data + pagination)
-        },
-        staleTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: false,
-        retry: 3,
-        retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
-    });
+// ── Query keys ────────────────────────────────────────────────────────────────
+export const motorTariffKeys = {
+  all: () => ["motorTariffs"] as const,
+  list: (criteria: MotorTariffSearchCriteria) =>
+    ["motorTariffs", "list", criteria] as const,
+  detail: (key: number) => ["motorTariffs", "detail", key] as const,
+  hierarchy: (level: string, params: Record<string, string | undefined>) =>
+    ["motorTariffs", "hierarchy", level, params] as const,
+};
 
-    return {
-        motorTariffs: data?.data || [],
-        pagination: {
-            currentPage: data?.pagination?.currentPage || 0,
-            pageSize: data?.pagination?.pageSize || 10,
-            totalElements: data?.pagination?.totalElements || 0,
-            totalPages: data?.pagination?.totalPages || 0,
-            hasNext: data?.pagination?.hasNext ?? false,
-            hasPrevious: data?.pagination?.hasPrevious ?? false,
-            sortBy: data?.pagination?.sortBy || "tariffKey",
-            sortDirection: data?.pagination?.sortDirection || "asc"
-        },
-        isLoading,
-        error,
-        refetch,
-    };
+// ── Paginated list ────────────────────────────────────────────────────────────
+export function useMotorTariffs(criteria?: MotorTariffFilterFormValues) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: motorTariffKeys.list(criteria ?? {}),
+    queryFn: () => getMotorTariffs(criteria),
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  return {
+    motorTariffs: data?.data ?? [],
+    pagination: {
+      currentPage: data?.pagination?.currentPage ?? 0,
+      pageSize: data?.pagination?.pageSize ?? 10,
+      totalElements: data?.pagination?.totalElements ?? 0,
+      totalPages: data?.pagination?.totalPages ?? 0,
+      hasNext: data?.pagination?.hasNext ?? false,
+      hasPrevious: data?.pagination?.hasPrevious ?? false,
+      sortBy: data?.pagination?.sortBy ?? "tariffKey",
+      sortDirection: data?.pagination?.sortDirection ?? "asc",
+    },
+    isLoading,
+    error,
+    refetch,
+  };
 }
 
+// ── Single tariff (full DTO) ──────────────────────────────────────────────────
+export function useMotorTariffById(tariffKey?: number) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: motorTariffKeys.detail(tariffKey!),
+    queryFn: async () => {
+      const res = await getMotorTariffById(tariffKey!);
+      return res.data ?? null;
+    },
+    enabled: !!tariffKey,
+    staleTime: 0,
+  });
 
-
-//Get MotorTariff by tariffKey
-export function useGetMotorTariffByTariffKey(tariffKey?: number) {
-    return useQuery<MotorTariff | null>({
-        queryKey: ["motorTariff", tariffKey],
-        queryFn: async () => {
-            if (!tariffKey) return null
-            const response = await getMotorTariffByTariffKey(tariffKey)
-            return response?.data || null
-        },
-        enabled: !!tariffKey,
-        staleTime: 0,
-    })
+  return { data, isLoading, error };
 }
 
-// Create motorTariff mutation
+// ── Create ────────────────────────────────────────────────────────────────────
 export function useCreateMotorTariff() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (motorTariffRequest: MotorTariffRequest) => {
-            const response = await createMotorTariff(motorTariffRequest);
-            return response;
-        },
-        onSuccess: (response) => {
-            // Invalidate all motorTariff-related queries
-            queryClient.invalidateQueries({ queryKey: ['motorTariffs'] });
-            toast.success(response?.message || "MotorTariff created successfully");
-        },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to create motorTariff');
-        }
-    });
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: MotorTariffDTO) => createMotorTariff(dto),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: motorTariffKeys.all() });
+      toast.success(res?.message ?? "Motor tariff created successfully.");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message ?? "Failed to create motor tariff.");
+    },
+  });
 }
 
-// Update motorTariff mutation
+// ── Update ────────────────────────────────────────────────────────────────────
 export function useUpdateMotorTariff() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async ({ tariffKey, motorTariffRequest }: { tariffKey: number, motorTariffRequest: MotorTariffRequest }) =>
-            await updateMotorTariff(tariffKey, motorTariffRequest),
-
-        onSuccess: (response, { tariffKey }) => {
-            // Invalidate all motorTariff-related queries
-            queryClient.invalidateQueries({ queryKey: ['motorTariffs'] });
-            // Optionally update the specific motorTariff in cache
-            queryClient.invalidateQueries({ queryKey: ['motorTariff', tariffKey] });
-            toast.success(response?.message || 'MotorTariff updated successfully');
-        },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to update motorTariff');
-        }
-    });
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tariffKey,
+      dto,
+    }: {
+      tariffKey: number;
+      dto: MotorTariffDTO;
+    }) => updateMotorTariff(tariffKey, dto),
+    onSuccess: (res, { tariffKey }) => {
+      qc.invalidateQueries({ queryKey: motorTariffKeys.all() });
+      qc.invalidateQueries({ queryKey: motorTariffKeys.detail(tariffKey) });
+      toast.success(res?.message ?? "Motor tariff updated successfully.");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message ?? "Failed to update motor tariff.");
+    },
+  });
 }
 
-// Patch MotorTariff rates mutation
-export function usePatchMotorTariffRates() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async ({
-            tariffKey,
-            rates,
-        }: {
-            tariffKey: number;
-            rates: Partial<MotorTariffRequest>;
-        }) => {
-            return await patchMotorTariffRates(tariffKey, rates);
-        },
-        onSuccess: (response, { tariffKey }) => {
-            // Refresh the list
-            queryClient.invalidateQueries({ queryKey: ['motorTariffs'] });
-            // Refresh the specific tariff
-            queryClient.invalidateQueries({ queryKey: ['motorTariff', tariffKey] });
-
-            toast.success(
-                response?.message || `Rates updated successfully for tariff ${tariffKey}`
-            );
-        },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to update MotorTariff rates');
-        },
-    });
-}
-
-
-
-// Delete motorTariff mutation
+// ── Delete ────────────────────────────────────────────────────────────────────
 export function useDeleteMotorTariff() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: async (tariffKey: number) => {
-            await deleteMotorTariff(tariffKey);
-            return tariffKey;
-        },
-        onSuccess: (tariffKey) => {
-            // Invalidate all motorTariff-related queries
-            queryClient.invalidateQueries({ queryKey: ['motorTariffs'] });
-            // Remove the specific motorTariff from cache
-            queryClient.removeQueries({ queryKey: ['motorTariff', 'id', tariffKey] });
-
-            toast.success('MotorTariff deleted successfully');
-        },
-        onError: (error) => {
-            toast.error(error.message || 'Failed to delete motorTariff');
-        }
-    });
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tariffKey: number) => deleteMotorTariff(tariffKey),
+    onSuccess: (_res, tariffKey) => {
+      qc.invalidateQueries({ queryKey: motorTariffKeys.all() });
+      qc.removeQueries({ queryKey: motorTariffKeys.detail(tariffKey) });
+      toast.success("Motor tariff deleted successfully.");
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message ?? "Failed to delete motor tariff.");
+    },
+  });
 }
 
-//Get Motor Hierarchy
-export function useMotorHierarchyLevel(
-    level: 'tariffType' | 'groupOfVehicle' | 'typeOfVehicle' | 'category',
-    filters: { tariffType?: string; groupOfVehicle?: string; typeOfVehicle?: string }
+// ── Hierarchy (cascading dropdowns) ──────────────────────────────────────────
+export function useMotorHierarchy(
+  level: "tariffType" | "groupOfVehicle" | "typeOfVehicle" | "category",
+  filters: {
+    tariffType?: string;
+    groupOfVehicle?: string;
+    typeOfVehicle?: string;
+  }
 ) {
-    const params = useMemo(() => {
-        const p: Record<string, string> = { level };
+  const params = useMemo(() => {
+    const p: Record<string, string | undefined> = {};
+    if (level !== "tariffType" && filters.tariffType)
+      p.tariffType = filters.tariffType;
+    if (
+      (level === "typeOfVehicle" || level === "category") &&
+      filters.groupOfVehicle
+    )
+      p.groupOfVehicle = filters.groupOfVehicle;
+    if (level === "category" && filters.typeOfVehicle)
+      p.typeOfVehicle = filters.typeOfVehicle;
+    return p;
+  }, [level, filters.tariffType, filters.groupOfVehicle, filters.typeOfVehicle]);
 
-        if (level !== 'tariffType' && filters.tariffType) {
-            p.tariffType = filters.tariffType;
-        }
-        if (['typeOfVehicle', 'category'].includes(level) && filters.groupOfVehicle) {
-            p.groupOfVehicle = filters.groupOfVehicle;
-        }
-        if (level === 'category' && filters.typeOfVehicle) {
-            p.typeOfVehicle = filters.typeOfVehicle;
-        }
+  const enabled = (() => {
+    if (level === "tariffType") return true;
+    if (level === "groupOfVehicle") return Boolean(params.tariffType);
+    if (level === "typeOfVehicle")
+      return Boolean(params.tariffType && params.groupOfVehicle);
+    if (level === "category")
+      return Boolean(
+        params.tariffType && params.groupOfVehicle && params.typeOfVehicle
+      );
+    return false;
+  })();
 
-        return p;
-    }, [level, filters.tariffType, filters.groupOfVehicle, filters.typeOfVehicle]);
+  const { data, isLoading } = useQuery({
+    queryKey: motorTariffKeys.hierarchy(level, params),
+    queryFn: async () => {
+      const res = await getMotorHierarchy({
+        level,
+        tariffType: params.tariffType,
+        groupOfVehicle: params.groupOfVehicle,
+        typeOfVehicle: params.typeOfVehicle,
+      });
+      return res.data ?? [];
+    },
+    enabled,
+    staleTime: 10 * 60 * 1000,
+  });
 
-    const enabled = (() => {
-        if (level === 'tariffType') return true;
-        if (level === 'groupOfVehicle') return Boolean(params.tariffType);
-        if (level === 'typeOfVehicle') return Boolean(params.tariffType && params.groupOfVehicle);
-        if (level === 'category') return Boolean(params.tariffType && params.groupOfVehicle && params.typeOfVehicle);
-        return false;
-    })();
-
-    return useQuery({
-        queryKey: ['motorHierarchy', level, params],
-        queryFn: () => getMotorHierarchy(params),
-        // staleTime: 600000,
-        enabled,
-    });
+  return { options: data ?? [], isLoading };
 }

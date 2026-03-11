@@ -1,65 +1,86 @@
-// MotorTariffList.tsx - Refactored using reusable components
+// features/masteradmin/tariff/motor/MotorTariffList.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-// Import reusable components
-import { useDataTable, TableColumnConfig } from "@/hooks/useDataTable";
+import { useDataTable } from "@/lib/hooks/useDataTable";
 import { TableControls } from "@/components/table/TableControls";
 import { DataTable } from "@/components/table/DataTable";
 import {
   createActionsColumn,
   createIndexColumn,
-  createIsActiveColumn,
   generateColumns,
+  TableColumnConfig,
 } from "@/lib/generateColumns";
-import {
-  MotorTariffAdminView,
-  MotorTariffSearchCriteria,
-} from "@/features/tariff-motor/motor.tariff.types";
 
 import {
+  useMotorTariffs,
   useDeleteMotorTariff,
-  useQueryMotorTariffs,
-} from "@/features/tariff-motor/motor.tariff.react-query";
-import { MotorTariffFilterForm } from "@/features/tariff-motor/components/MotorTariffFilterForm";
-import MotorTariffViewModal from "@/features/tariff-motor/components/MotorTariffViewModal";
-import { MotorTariffFilterFormValues } from "@/features/tariff-motor/motor.tariff.schema";
-import MotorTariffPatchModal from "./MotorTariffPatchModal";
+  useMotorTariffById,
+} from "../motor.tariff.react-query";
+import { MotorTariffFilterFormValues } from "../motor.tariff.schema";
+import { MotorTariffSearchCriteria, MotorTariffShortView } from "../motor.tariff.types";
+import MotorTariffFilterForm from "./MotorTariffFilterForm";
+import { MotorTariffViewModal } from "./MotorTariffViewModal";
+import { MotorTariffForm } from "./MotorTariffForm";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
-const COLUMN_CONFIGS: TableColumnConfig<MotorTariffAdminView>[] = [
+// ── Table row shape ────────────────────────────────────────────────────────────
+interface MotorTariffRow {
+  tariffKey: number;
+  tariffType: string;
+  groupOfVehicle: string;
+  typeOfVehicle: string;
+  category: string;
+  ownDpBasic: number;
+  fullInsValue: number;
+  actLiability: number;
+  isActive: boolean;
+}
+
+// ── Column definitions ─────────────────────────────────────────────────────────
+const COLUMN_CONFIGS: TableColumnConfig<MotorTariffRow>[] = [
   { key: "tariffKey", label: "ID", visible: true, sortable: true },
-  { key: "tariffType", label: "Type", visible: true, sortable: true },
-  { key: "groupOfVehicle", label: "Group", visible: false, sortable: true },
+  { key: "tariffType", label: "Tariff Type", visible: true, sortable: true },
+  { key: "groupOfVehicle", label: "Vehicle Group", visible: true, sortable: true },
+  { key: "typeOfVehicle", label: "Vehicle Type", visible: true, sortable: true },
+  { key: "category", label: "Category / CC", visible: true, sortable: true },
+  { key: "ownDpBasic", label: "Own DP Basic (৳)", visible: true, sortable: false },
+  { key: "fullInsValue", label: "Full Ins. Value (%)", visible: false, sortable: false },
+  { key: "actLiability", label: "Act Liability (৳)", visible: false, sortable: false },
   {
-    key: "typeOfVehicle",
-    label: "Type of Vehicle",
-    visible: true,
-    sortable: true,
-  },
-  { key: "category", label: "Category", visible: true, sortable: true },
-  { key: "ownDpBasic", label: "Own Damage", visible: true, sortable: false },
-  {
-    key: "fullInsValue",
-    label: "Full Insurance",
+    key: "isActive",
+    label: "Status",
     visible: true,
     sortable: false,
-  },
-  {
-    key: "actLiability",
-    label: "Act Liability",
-    visible: true,
-    sortable: false,
+    isBoolean: true,
+    trueLabel: "Active",
+    falseLabel: "Inactive",
+    isNegative: false,
   },
 ];
-export const MotorTariffList = () => {
-  // State
-  const [selectedTariffKey, setSelectedTariffKey] = useState<number | null>(
-    null
-  );
+
+// ── Component ──────────────────────────────────────────────────────────────────
+export function MotorTariffList() {
+  // ── Modal state ──
+  const [viewTariffKey, setViewTariffKey] = useState<number | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [patchRateModalOpen, setPatchRateModalOpen] = useState(false);
+
+  const [editTariffKey, setEditTariffKey] = useState<number | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
+  const [deleteTariffKey, setDeleteTariffKey] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // ── Search state ──
   const [searchCriteria, setSearchCriteria] =
     useState<MotorTariffFilterFormValues>({
       page: 0,
@@ -70,96 +91,123 @@ export const MotorTariffList = () => {
   const [showFilter, setShowFilter] = useState(false);
   const [searchDebounce, setSearchDebounce] = useState("");
 
-  // Mutations & Queries
-  const deleteMotorTariff = useDeleteMotorTariff().mutateAsync;
+  // ── Data ──
+  const { motorTariffs, pagination, isLoading, error, refetch } =
+    useMotorTariffs(searchCriteria);
 
-  const {
-    motorTariffs,
-    pagination,
-    isLoading: motorTariffListLoading,
-    error: motorTariffListError,
-    refetch: motorTariffListRefetch,
-  } = useQueryMotorTariffs(searchCriteria);
+  const deleteMutation = useDeleteMotorTariff();
 
-  // Handlers
-  const handleViewMotorTariff = useCallback((id: string | number) => {
-    const tariffKey = typeof id === "string" ? parseInt(id, 10) : id;
-    if (!isNaN(tariffKey)) {
-      setSelectedTariffKey(tariffKey);
+  // Prefetch edit data when key is set
+  const { data: editData } = useMotorTariffById(editTariffKey ?? undefined);
+
+  // ── Table rows ──
+  const tableRows: MotorTariffRow[] = motorTariffs.map(
+    (t: MotorTariffShortView) => ({
+      tariffKey: t.tariffKey,
+      tariffType: t.tariffType,
+      groupOfVehicle: t.groupOfVehicle,
+      typeOfVehicle: t.typeOfVehicle,
+      category: t.category,
+      ownDpBasic: t.ownDpBasic,
+      fullInsValue: t.fullInsValue,
+      actLiability: t.actLiability,
+      isActive: t.isActive,
+    })
+  );
+
+  // ── Handlers ──
+  const handleView = useCallback((id: string | number) => {
+    const key = Number(id);
+    if (!isNaN(key)) {
+      setViewTariffKey(key);
       setViewModalOpen(true);
     }
   }, []);
 
-  const handlePatchRate = useCallback((id: string | number) => {
-    const tariffKey = typeof id === "string" ? parseInt(id, 10) : id;
-    if (!isNaN(tariffKey)) {
-      setSelectedTariffKey(tariffKey);
-      setPatchRateModalOpen(true);
+  const handleEdit = useCallback((id: string | number) => {
+    const key = Number(id);
+    if (!isNaN(key)) {
+      setEditTariffKey(key);
+      setEditModalOpen(true);
     }
   }, []);
 
-  const handleDeleteMotorTariff = useCallback(
-    async (id: string | number) => {
-      const tariffKey = typeof id === "string" ? parseInt(id, 10) : id;
-      if (!isNaN(tariffKey)) {
-        await deleteMotorTariff(tariffKey);
-      }
-    },
-    [deleteMotorTariff]
-  );
+  const handleDelete = useCallback((id: string | number) => {
+    const key = Number(id);
+    if (!isNaN(key)) {
+      setDeleteTariffKey(key);
+      setDeleteDialogOpen(true);
+    }
+  }, []);
+
+  const handleConfirmDelete = () => {
+    if (deleteTariffKey != null) {
+      deleteMutation.mutate(deleteTariffKey, {
+        onSuccess: () => {
+          setDeleteDialogOpen(false);
+          setDeleteTariffKey(null);
+          refetch();
+        },
+      });
+    }
+  };
 
   const handleFilterSubmit = (criteria: MotorTariffFilterFormValues) => {
     setSearchCriteria(criteria);
     setShowFilter(false);
   };
 
-  const handleRefetchAll = () => {
-    motorTariffListRefetch();
-  };
-
   const handleSearchChange = (criteria: MotorTariffFilterFormValues) => {
     setSearchCriteria(criteria);
   };
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = (page: number) =>
     setSearchCriteria((prev) => ({ ...prev, page }));
-  };
 
-  const handlePageSizeChange = (size: number) => {
+  const handlePageSizeChange = (size: number) =>
     setSearchCriteria((prev) => ({ ...prev, size, page: 0 }));
-  };
 
+  // Active filter count (exclude pagination/sort keys)
   const activeFiltersCount = useMemo(() => {
+    const ignored = new Set(["page", "size", "sortBy", "sortDirection"]);
     return Object.keys(searchCriteria).filter(
-      (key) =>
-        key !== "page" &&
-        key !== "size" &&
-        key !== "sortBy" &&
-        key !== "sortDirection" &&
-        searchCriteria[key as keyof MotorTariffSearchCriteria] !== undefined
+      (k) =>
+        !ignored.has(k) &&
+        (searchCriteria as Record<string, unknown>)[k] !== undefined
     ).length;
   }, [searchCriteria]);
 
-  // Columns
-  const columns: ColumnDef<MotorTariffAdminView>[] = useMemo(
+  // Debounced tariffKey search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const parsed = parseInt(searchDebounce, 10);
+      setSearchCriteria((prev) => ({
+        ...prev,
+        tariffKey: searchDebounce && !isNaN(parsed) ? parsed : undefined,
+        page: 0,
+      }));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchDebounce]);
+
+  // ── Columns ──
+  const columns: ColumnDef<MotorTariffRow>[] = useMemo(
     () => [
-      createIndexColumn<MotorTariffAdminView>(),
-      ...generateColumns<MotorTariffAdminView>(COLUMN_CONFIGS),
-      createIsActiveColumn<MotorTariffAdminView>("isActive"),
-      createActionsColumn<MotorTariffAdminView>(
-        handleViewMotorTariff,
-        handleDeleteMotorTariff,
-        handlePatchRate,
-        "MotorTariff"
+      createIndexColumn<MotorTariffRow>(),
+      ...generateColumns<MotorTariffRow>(COLUMN_CONFIGS),
+      createActionsColumn<MotorTariffRow>(
+        handleView,
+        handleDelete,
+        handleEdit,
+        "Tariff"
       ),
     ],
-    [handleViewMotorTariff, handleDeleteMotorTariff,handlePatchRate]
+    [handleView, handleDelete, handleEdit]
   );
 
-  // Use the generic table hook
   const { table, toggleableColumns, visibleCount, totalCount, columnActions } =
-    useDataTable<MotorTariffAdminView, MotorTariffSearchCriteria>({
-      data: motorTariffs,
+    useDataTable<MotorTariffRow, MotorTariffSearchCriteria>({
+      data: tableRows,
       columns,
       columnConfigs: COLUMN_CONFIGS,
       pagination,
@@ -168,29 +216,16 @@ export const MotorTariffList = () => {
       getRowId: (row) => String(row.tariffKey),
     });
 
-  // Effects
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearchCriteria((prev) => ({
-        ...prev,
-        tariffKey: searchDebounce ? Number(searchDebounce) : undefined,
-        page: 0,
-      }));
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchDebounce]);
-
   return (
-    <div className="space-y-4">
-      {/* Table Controls */}
+    <div className="space-y-2">
       <TableControls
         searchValue={searchDebounce}
         onSearchChange={setSearchDebounce}
-        searchPlaceholder="Search motorTariffs..."
+        searchPlaceholder="Search tariffs…"
         showFilter={showFilter}
         onFilterToggle={() => setShowFilter(!showFilter)}
         activeFiltersCount={activeFiltersCount}
+        filterLoading={false}
         toggleableColumns={toggleableColumns}
         visibleCount={visibleCount}
         totalCount={totalCount}
@@ -198,48 +233,71 @@ export const MotorTariffList = () => {
         onShowAllColumns={columnActions.showAll}
         onHideAllColumns={columnActions.hideAll}
         onResetColumns={columnActions.resetVisibility}
-        onRefresh={handleRefetchAll}
-        isRefreshing={motorTariffListLoading}
+        onRefresh={refetch}
+        isRefreshing={isLoading}
       >
         <MotorTariffFilterForm
           defaultValues={searchCriteria}
           onSubmit={handleFilterSubmit}
-          currentSearch={searchDebounce}
         />
       </TableControls>
 
-      {/* Data Table */}
       <DataTable
         table={table}
         columns={columns}
-        data={motorTariffs}
+        data={tableRows}
         pagination={pagination}
-        isLoading={motorTariffListLoading}
-        error={motorTariffListError}
-        onRefresh={handleRefetchAll}
+        isLoading={isLoading}
+        error={error}
+        onRefresh={refetch}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
-        title="MotorTariffs"
-        emptyMessage="No motorTariffs found."
+        title="Motor Tariffs"
+        emptyMessage="No motor tariffs found."
       />
 
-      {/* MotorTariff View Modal */}
-      {selectedTariffKey && (
+      {/* ── View Modal ── */}
+      {viewTariffKey && (
         <MotorTariffViewModal
-          tariffKey={selectedTariffKey}
+          tariffKey={viewTariffKey}
           open={viewModalOpen}
           onOpenChange={setViewModalOpen}
         />
       )}
 
-       {/* Motor Tariff Patch Modal */}
-      {selectedTariffKey && (
-        <MotorTariffPatchModal
-          tariffKey={selectedTariffKey}
-          open={patchRateModalOpen}
-          onOpenChange={setPatchRateModalOpen}
-        />
-      )}
+      {/* ── Edit Modal ── */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-gs-line bg-surface-card">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-head text-t1">Edit Motor Tariff</DialogTitle>
+            <DialogDescription className="text-t3">
+              Update the tariff details below. The unique vehicle combination
+              (Type → Group → Type → Category) cannot duplicate an existing entry.
+            </DialogDescription>
+          </DialogHeader>
+          {editTariffKey && (
+            <MotorTariffForm
+              tariffKey={editTariffKey}
+              initialData={editData}
+              onSuccess={() => {
+                setEditModalOpen(false);
+                setEditTariffKey(null);
+                refetch();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirm ── */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+        title="Delete Motor Tariff?"
+        description={`Tariff #${deleteTariffKey} will be permanently deleted. This action cannot be undone.`}
+        confirmText="Delete Tariff"
+      />
     </div>
   );
-};
+}
