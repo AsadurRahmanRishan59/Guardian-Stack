@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/AsadurRahmanRishan59/Guardian-Stack/main/frontend/public/images/GS.png" alt="GuardianStack Logo" width="180" />
 </p>
 
-# 🛡️ GuardianStack
+# <img src="https://raw.githubusercontent.com/AsadurRahmanRishan59/Guardian-Stack/main/frontend/public/images/GS.png" width="32" style="vertical-align:middle" /> GuardianStack
 
 > A personal project — building a full-stack motor insurance platform from scratch, the way I think it should actually work in Bangladesh.
 
