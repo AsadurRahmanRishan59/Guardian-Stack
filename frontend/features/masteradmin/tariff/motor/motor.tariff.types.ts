@@ -1,9 +1,10 @@
 // features/masteradmin/tariff/motor/motor_tariff_types.ts
 
-export type MotorTariffType =
-  | "Private Vehicle"
-  | "Motor Cycle"
-  | "Commercial Vehicle";
+export enum TariffType {
+  PRIVATE_VEHICLE = "Private Vehicle",
+  MOTOR_CYCLE = "Motor Cycle",
+  COMMERCIAL_VEHICLE = "Commercial Vehicle",
+}
 
 export type SortOption =
   | "tariffKey"
@@ -15,7 +16,7 @@ export type SortOption =
 // ── Matches backend: MotorTariffShortView (table row) ─────────────────────────
 export interface MotorTariffShortView {
   tariffKey: number;
-  tariffType: string;
+  tariffType: TariffType;
   groupOfVehicle: string;
   typeOfVehicle: string;
   category: string;
@@ -28,7 +29,7 @@ export interface MotorTariffShortView {
 // ── Matches backend: MotorTariffFullDTO (view modal) ──────────────────────────
 export interface MotorTariffFullDTO {
   tariffKey: number;
-  tariffType: string;
+  tariffType: TariffType;
   groupOfVehicle: string;
   typeOfVehicle: string;
   category: string;
@@ -49,7 +50,7 @@ export interface MotorTariffFullDTO {
 // ── Matches backend: MotorTariffDTO (create / update body) ────────────────────
 export interface MotorTariffDTO {
   tariffKey?: number | null;
-  tariffType: string;
+  tariffType: TariffType;
   groupOfVehicle: string;
   typeOfVehicle: string;
   category: string;
@@ -66,7 +67,7 @@ export interface MotorTariffDTO {
 // ── Matches backend: MotorTariffMasterAdminViewSearchCriteria ─────────────────
 export interface MotorTariffSearchCriteria {
   tariffKey?: number;
-  tariffType?: string;
+  tariffType?: TariffType;
   groupOfVehicle?: string;
   typeOfVehicle?: string;
   category?: string;

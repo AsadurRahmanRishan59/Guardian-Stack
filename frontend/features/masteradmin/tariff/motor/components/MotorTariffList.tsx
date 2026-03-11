@@ -278,7 +278,6 @@ export function MotorTariffList() {
           {editTariffKey && (
             <MotorTariffForm
               tariffKey={editTariffKey}
-              initialData={editData}
               onSuccess={() => {
                 setEditModalOpen(false);
                 setEditTariffKey(null);

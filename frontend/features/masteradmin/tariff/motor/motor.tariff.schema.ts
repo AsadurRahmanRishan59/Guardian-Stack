@@ -1,65 +1,64 @@
-import { z } from "zod";
+import { z } from 'zod';
+import { TariffType } from './motor.tariff.types';
 
 export const motorTariffSchema = z.object({
-  tariffKey: z.number().optional(),
+  // v4 allows .int() and .optional() to chain cleanly
+  tariffKey: z.number().int().optional(),
 
-  tariffType: z
-    .string()
-    .min(1, "Tariff Type is required (e.g., Private Vehicle, Motor Cycle)")
-    .max(50, "Tariff Type must not exceed 50 characters")
-    .regex(
-      /^(Private Vehicle|Motor Cycle|Commercial Vehicle)$/,
-      "Tariff type must be one of: Private Vehicle, Motor Cycle, Commercial Vehicle"
-    ),
+  // v4: Use the 'message' property in the params object for enums
+  tariffType: z.enum(TariffType, {
+    message: "Tariff type must be one of: Private Vehicle, Motor Cycle, Commercial Vehicle",
+  }),
 
-  groupOfVehicle: z
-    .string()
+  groupOfVehicle: z.string()
     .min(1, "Vehicle Group is required")
     .max(500, "Vehicle Group description is too long"),
 
-  typeOfVehicle: z
-    .string()
+  typeOfVehicle: z.string()
     .min(1, "Vehicle Type description is mandatory")
     .max(500, "Vehicle Type description is too long"),
 
-  category: z
-    .string()
+  category: z.string()
     .min(1, "Category or CC Range must be specified")
     .max(500, "Category description is too long"),
 
-  ownDpBasic: z.coerce.number().min(0, "Basic premium must be 0 or a positive value"),
+  // BigDecimal constraints
+  ownDpBasic: z.number()
+    .min(0, "Basic premium must be 0 or a positive value")
+    .multipleOf(0.01, "Basic premium must have max 2 decimals")
+    .max(99999999.99, "Basic premium must be a valid amount (max 8 digits)"),
 
-  fullInsValue: z.coerce.number().min(0, "Insurance rate cannot be negative").max(100, "Insurance rate cannot exceed 100%"),
+  fullInsValue: z.number()
+    .min(0, "Insurance rate cannot be negative")
+    .max(100, "Insurance rate cannot exceed 100%"),
 
-  actLiability: z.coerce.number().min(0, "Act Liability cannot be negative"),
+  actLiability: z.number()
+    .min(0, "Act Liability cannot be negative"),
 
-  fire: z.coerce.number().min(0, "Fire rate cannot be negative").max(100, "Fire rate cannot exceed 100%"),
+  fire: z.number()
+    .min(0, "Fire rate cannot be negative")
+    .max(100, "Fire rate cannot exceed 100%"),
 
-  theft: z.coerce.number().min(0, "Theft rate cannot be negative").max(100, "Theft rate cannot exceed 100%"),
+  theft: z.number()
+    .min(0, "Theft rate cannot be negative")
+    .max(100, "Theft rate cannot exceed 100%"),
 
-  cyclone: z.coerce.number().min(0, "Cyclone rate cannot be negative").max(100, "Cyclone rate cannot exceed 100%"),
+  cyclone: z.number()
+    .min(0, "Cyclone rate cannot be negative")
+    .max(100, "Cyclone rate cannot exceed 100%"),
 
-  earthquake: z.coerce.number().min(0, "Earthquake rate cannot be negative").max(100, "Earthquake rate cannot exceed 100%"),
+  earthquake: z.number()
+    .min(0, "Earthquake rate cannot be negative")
+    .max(100, "Earthquake rate cannot exceed 100%"),
 
-  isActive: z.boolean(),
+  // v4: required_error is simplified to 'message' in the params object
+  isActive: z.boolean({
+    message: "Active status must be specified",
+  }),
 });
 
-export type MotorTariffFormValues = {
-  tariffKey?: number;
-  tariffType: string;
-  groupOfVehicle: string;
-  typeOfVehicle: string;
-  category: string;
-  ownDpBasic: number;
-  fullInsValue: number;
-  actLiability: number;
-  fire: number;
-  theft: number;
-  cyclone: number;
-  earthquake: number;
-  isActive: boolean;
-};
-
+// Extract the TypeScript type from the schema
+export type MotorTariffFormValues = z.infer<typeof motorTariffSchema>;
 
 export const motorTariffFilterSchema = z.object({
   // Search
@@ -69,7 +68,7 @@ export const motorTariffFilterSchema = z.object({
     .optional(),
 
   // Filters
-  tariffType: z.string().optional(),
+  tariffType: z.enum(TariffType).optional().or(z.literal("")),
   groupOfVehicle: z.string().optional(),
   typeOfVehicle: z.string().optional(),
   category: z.string().optional(),

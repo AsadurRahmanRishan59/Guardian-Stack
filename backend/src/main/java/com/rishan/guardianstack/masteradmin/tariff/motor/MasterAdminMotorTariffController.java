@@ -72,7 +72,7 @@ public class MasterAdminMotorTariffController {
         MotorTariffDTO motorTariff = service.updateMotorTariff(tariffKey, dto);
         return ResponseEntity.status(HttpStatus.OK).body(
                 new ApiResponse<>(
-                        true, motorTariff.tariffKey() + " Updated successfully",
+                        true, "Motor Tariff with ID:" + motorTariff.tariffKey() + " Updated successfully",
                         motorTariff,
                         LocalDateTime.now()));
     }

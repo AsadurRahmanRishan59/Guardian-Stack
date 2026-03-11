@@ -16,6 +16,7 @@ import {
 import { MotorTariffList } from "./MotorTariffList";
 import { MotorTariffForm } from "./MotorTariffForm";
 
+
 export function MotorTariffContainer() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
 

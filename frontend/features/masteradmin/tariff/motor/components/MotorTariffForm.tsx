@@ -1,10 +1,10 @@
-// features/masteradmin/tariff/motor/components/MotorTariffForm.tsx
 "use client";
 
 import { useEffect } from "react";
-import { useForm, useWatch, Resolver } from "react-hook-form";
+import { useForm, Resolver, Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, AlertCircle, Info } from "lucide-react";
+import { Loader2, Car, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,80 +24,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import {
   motorTariffSchema,
   MotorTariffFormValues,
 } from "../motor.tariff.schema";
-import type { MotorTariffFullDTO } from "../motor.tariff.types";
-import { useMotorHierarchy } from "../motor.tariff.react-query";
+import {
+  useCreateMotorTariff,
+  useUpdateMotorTariff,
+  useMotorTariffById,
+} from "../motor.tariff.react-query";
+import { isServerError } from "@/lib/api/error-handling";
+import { TariffType } from "../motor.tariff.types";
 
 interface MotorTariffFormProps {
-  onSubmit: (data: MotorTariffFormValues) => void;
-  isPending?: boolean;
-  initialData?: MotorTariffFullDTO | null;
-  mode?: "create" | "edit";
-  serverError?: string | null;
+  tariffKey?: number; // If present, we are in EDIT mode
+  onSuccess: () => void;
 }
 
-// ── Rate input field ──────────────────────────────────────────────────────────
-
-function RateField({
-  form,
-  name,
-  label,
-  unit = "%",
-  placeholder = "0.00",
-}: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  form: any;
+interface NumericFieldProps {
+  control: Control<MotorTariffFormValues>;
   name: keyof MotorTariffFormValues;
   label: string;
   unit?: string;
-  placeholder?: string;
-}) {
-  return (
-    <FormField
-      control={form.control}
-      name={name}
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel className="text-xs text-t2 font-medium">{label}</FormLabel>
-          <FormControl>
-            <div className="relative">
-              <Input
-                {...field}
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder={placeholder}
-                value={field.value ?? ""}
-                onChange={(e) => field.onChange(e.target.value)}
-                className="pr-8 bg-surface border-gs-line text-t1 focus:border-brand focus:ring-brand/20 h-9 text-sm"
-              />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-t4 font-mono pointer-events-none">
-                {unit}
-              </span>
-            </div>
-          </FormControl>
-          <FormMessage className="text-[10px]" />
-        </FormItem>
-      )}
-    />
-  );
 }
 
-// ── Main form ─────────────────────────────────────────────────────────────────
-
 export function MotorTariffForm({
-  onSubmit,
-  isPending = false,
-  initialData,
-  mode = "create",
-  serverError,
+  tariffKey,
+  onSuccess,
 }: MotorTariffFormProps) {
+  const isEditMode = !!tariffKey;
+
+  // Mutations & Queries
+  const { data: tariff, isLoading: isFetching } = useMotorTariffById(tariffKey);
+  const createMutation = useCreateMotorTariff();
+  const updateMutation = useUpdateMotorTariff();
+
   const form = useForm<MotorTariffFormValues>({
     resolver: zodResolver(motorTariffSchema) as Resolver<MotorTariffFormValues>,
     defaultValues: {
@@ -116,114 +80,97 @@ export function MotorTariffForm({
     },
   });
 
-  // Populate form in edit mode
+  const { control, handleSubmit, setError, reset } = form;
+
   useEffect(() => {
-    if (!initialData || mode !== "edit") return;
-    form.reset({
-      tariffType: initialData.tariffType,
-      groupOfVehicle: initialData.groupOfVehicle,
-      typeOfVehicle: initialData.typeOfVehicle,
-      category: initialData.category,
-      ownDpBasic: Number(initialData.ownDpBasic),
-      fullInsValue: Number(initialData.fullInsValue),
-      actLiability: Number(initialData.actLiability),
-      fire: Number(initialData.fire),
-      theft: Number(initialData.theft),
-      cyclone: Number(initialData.cyclone),
-      earthquake: Number(initialData.earthquake),
-      isActive: initialData.isActive,
-    });
-  }, [initialData, mode, form]);
+    if (isEditMode && tariff) {
+      // We reset the form with the API data
+      reset({
+        ...tariff,
+        tariffType: tariff.tariffType as TariffType,
+      });
 
-  // Watch values for cascading dropdowns
-  const selectedTariffType = useWatch({ control: form.control, name: "tariffType" });
-  const selectedGroup = useWatch({ control: form.control, name: "groupOfVehicle" });
-  const selectedType = useWatch({ control: form.control, name: "typeOfVehicle" });
-
-  // Hierarchy queries
-  const { options: tariffTypes = [], isLoading: typesLoading } = useMotorHierarchy(
-    "tariffType",
-    {}
-  );
-  const { options: groups = [], isLoading: groupsLoading } = useMotorHierarchy(
-    "groupOfVehicle",
-    { tariffType: selectedTariffType }
-  );
-  const { options: vehicleTypes = [], isLoading: vehicleTypesLoading } =
-    useMotorHierarchy("typeOfVehicle", {
-      tariffType: selectedTariffType,
-      groupOfVehicle: selectedGroup,
-    });
-  const { options: categories = [], isLoading: categoriesLoading } =
-    useMotorHierarchy("category", {
-      tariffType: selectedTariffType,
-      groupOfVehicle: selectedGroup,
-      typeOfVehicle: selectedType,
-    });
-
-  // Reset dependent fields when parent changes
-  const handleTariffTypeChange = (val: string) => {
-    form.setValue("tariffType", val as MotorTariffFormValues["tariffType"]);
-    form.setValue("groupOfVehicle", "");
-    form.setValue("typeOfVehicle", "");
-    form.setValue("category", "");
+      // EXTRA SECURE: Manually set the value just in case reset()
+      // is swallowed by the component's internal mounting state
+      form.setValue("tariffType", tariff.tariffType as TariffType);
+    }
+  }, [isEditMode, tariff, reset, form]);
+  const onSubmit = async (data: MotorTariffFormValues) => {
+    try {
+      if (isEditMode && tariffKey) {
+        await updateMutation.mutateAsync({ tariffKey, dto: data });
+      } else {
+        await createMutation.mutateAsync(data);
+      }
+      reset();
+      onSuccess();
+    } catch (error) {
+      if (
+        isServerError(error) &&
+        typeof error.data === "object" &&
+        error.data !== null
+      ) {
+        const dataObj = error.data as Record<string, string>;
+        Object.entries(dataObj).forEach(([field, message]) => {
+          setError(field as keyof MotorTariffFormValues, {
+            type: "server",
+            message,
+          });
+        });
+      } else {
+        toast.error(`Failed to ${isEditMode ? "update" : "create"} tariff`);
+      }
+    }
   };
 
-  const handleGroupChange = (val: string) => {
-    form.setValue("groupOfVehicle", val);
-    form.setValue("typeOfVehicle", "");
-    form.setValue("category", "");
-  };
-
-  const handleVehicleTypeChange = (val: string) => {
-    form.setValue("typeOfVehicle", val);
-    form.setValue("category", "");
-  };
+  if (isEditMode && isFetching) {
+    return (
+      <div className="space-y-4 p-4">
+        <Skeleton className="h-8 w-1/3" />
+        <div className="grid grid-cols-2 gap-4">
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </div>
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-        {/* Server error */}
-        {serverError && (
-          <Alert variant="destructive" className="border-destructive/30 bg-destructive/10 py-2.5">
-            <AlertCircle className="h-3.5 w-3.5" />
-            <AlertDescription className="text-xs">{serverError}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* ── Section: Vehicle Classification ── */}
-        <div className="space-y-3">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* --- Vehicle Classification --- */}
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <Info className="h-3.5 w-3.5 text-brand" />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-t3">
+            <Car className="h-4 w-4 text-brand" />
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-t3">
               Vehicle Classification
             </h3>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Tariff Type */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
-              control={form.control}
+              control={control}
               name="tariffType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-t2 font-medium">
-                    Tariff Type <span className="text-destructive">*</span>
+                  <FormLabel className="text-xs font-medium">
+                    Tariff Type *
                   </FormLabel>
                   <Select
-                    value={field.value ?? ""}
-                    onValueChange={handleTariffTypeChange}
-                    disabled={typesLoading}
+                    onValueChange={field.onChange}
+                    // Adding a key based on the value can force a re-render if it gets stuck,
+                    // but usually, just ensuring value is never undefined is enough:
+                    value={field.value || ""}
                   >
                     <FormControl>
-                      <SelectTrigger className="bg-surface border-gs-line text-t1 h-9 text-sm focus:ring-brand/20">
-                        <SelectValue placeholder={typesLoading ? "Loading…" : "Select tariff type"} />
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent className="bg-surface-card border-gs-line">
-                      {tariffTypes.map((t: string) => (
-                        <SelectItem key={t} value={t} className="text-sm text-t1">
-                          {t}
+                    <SelectContent>
+                      {Object.values(TariffType).map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {v}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -232,122 +179,47 @@ export function MotorTariffForm({
                 </FormItem>
               )}
             />
-
-            {/* Group of Vehicle */}
             <FormField
-              control={form.control}
+              control={control}
               name="groupOfVehicle"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-t2 font-medium">
-                    Group of Vehicle <span className="text-destructive">*</span>
+                  <FormLabel className="text-xs font-medium">
+                    Vehicle Group *
                   </FormLabel>
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={handleGroupChange}
-                    disabled={!selectedTariffType || groupsLoading}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="bg-surface border-gs-line text-t1 h-9 text-sm focus:ring-brand/20">
-                        <SelectValue
-                          placeholder={
-                            !selectedTariffType
-                              ? "Select tariff type first"
-                              : groupsLoading
-                              ? "Loading…"
-                              : "Select group"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-surface-card border-gs-line">
-                      {groups.map((g: string) => (
-                        <SelectItem key={g} value={g} className="text-sm text-t1">
-                          {g}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input {...field} className="h-9" />
+                  </FormControl>
                   <FormMessage className="text-[10px]" />
                 </FormItem>
               )}
             />
-
-            {/* Type of Vehicle */}
             <FormField
-              control={form.control}
+              control={control}
               name="typeOfVehicle"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-t2 font-medium">
-                    Type of Vehicle <span className="text-destructive">*</span>
+                  <FormLabel className="text-xs font-medium">
+                    Vehicle Type *
                   </FormLabel>
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={handleVehicleTypeChange}
-                    disabled={!selectedGroup || vehicleTypesLoading}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="bg-surface border-gs-line text-t1 h-9 text-sm focus:ring-brand/20">
-                        <SelectValue
-                          placeholder={
-                            !selectedGroup
-                              ? "Select group first"
-                              : vehicleTypesLoading
-                              ? "Loading…"
-                              : "Select vehicle type"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-surface-card border-gs-line">
-                      {vehicleTypes.map((vt: string) => (
-                        <SelectItem key={vt} value={vt} className="text-sm text-t1">
-                          {vt}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input {...field} className="h-9" />
+                  </FormControl>
                   <FormMessage className="text-[10px]" />
                 </FormItem>
               )}
             />
-
-            {/* Category */}
             <FormField
-              control={form.control}
+              control={control}
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-t2 font-medium">
-                    Category / CC Range <span className="text-destructive">*</span>
+                  <FormLabel className="text-xs font-medium">
+                    Category / CC Range *
                   </FormLabel>
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={(val) => form.setValue("category", val)}
-                    disabled={!selectedType || categoriesLoading}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="bg-surface border-gs-line text-t1 h-9 text-sm focus:ring-brand/20">
-                        <SelectValue
-                          placeholder={
-                            !selectedType
-                              ? "Select vehicle type first"
-                              : categoriesLoading
-                              ? "Loading…"
-                              : "Select category"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="bg-surface-card border-gs-line">
-                      {categories.map((c: string) => (
-                        <SelectItem key={c} value={c} className="text-sm text-t1">
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Input {...field} className="h-9" />
+                  </FormControl>
                   <FormMessage className="text-[10px]" />
                 </FormItem>
               )}
@@ -355,100 +227,107 @@ export function MotorTariffForm({
           </div>
         </div>
 
-        <Separator className="bg-gs-line" />
+        <Separator />
 
-        {/* ── Section: Premium & Liability ── */}
-        <div className="space-y-3">
+        {/* --- Rates Section --- */}
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <Info className="h-3.5 w-3.5 text-brand" />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-t3">
-              Premium & Liability
+            <ShieldCheck className="h-4 w-4 text-brand" />
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-t3">
+              Premium & Peril Rates
             </h3>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <RateField
-              form={form}
+            <NumericField
+              control={control}
               name="ownDpBasic"
-              label="Own DP Basic Premium *"
+              label="Basic Premium"
               unit="BDT"
-              placeholder="0.00"
             />
-            <RateField
-              form={form}
+            <NumericField
+              control={control}
               name="fullInsValue"
-              label="Full Insurance Value *"
+              label="Full Ins. Value"
               unit="%"
-              placeholder="0.00"
             />
-            <RateField
-              form={form}
+            <NumericField
+              control={control}
               name="actLiability"
-              label="Act Liability *"
+              label="Act Liability"
               unit="BDT"
-              placeholder="0.00"
+            />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-3 rounded-lg bg-surface-2/30 border border-gs-line/40">
+            <NumericField control={control} name="fire" label="Fire" />
+            <NumericField control={control} name="theft" label="Theft" />
+            <NumericField control={control} name="cyclone" label="Cyclone" />
+            <NumericField
+              control={control}
+              name="earthquake"
+              label="Earthquake"
             />
           </div>
         </div>
 
-        <Separator className="bg-gs-line" />
-
-        {/* ── Section: Peril Rates ── */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Info className="h-3.5 w-3.5 text-brand" />
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-t3">
-              Peril Rates (%)
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <RateField form={form} name="fire" label="Fire *" />
-            <RateField form={form} name="theft" label="Theft *" />
-            <RateField form={form} name="cyclone" label="Cyclone *" />
-            <RateField form={form} name="earthquake" label="Earthquake *" />
-          </div>
+        <div className="flex items-center justify-between p-4 rounded-md border bg-surface/50">
+          <p className="text-sm font-semibold">Active Status</p>
+          <FormField
+            control={control}
+            name="isActive"
+            render={({ field }) => (
+              <Switch
+                checked={field.value as boolean}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
         </div>
 
-        <Separator className="bg-gs-line" />
-
-        {/* ── Status ── */}
-        <FormField
-          control={form.control}
-          name="isActive"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between rounded-gs border border-gs-line bg-surface-2/50 px-4 py-3">
-              <div>
-                <FormLabel className="text-sm font-medium text-t1">
-                  Active Status
-                </FormLabel>
-                <p className="text-[10px] text-t4 mt-0.5">
-                  Inactive tariffs are hidden from rate calculations
-                </p>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="data-[state=checked]:bg-brand"
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
-
-        {/* ── Actions ── */}
-        <div className="flex items-center justify-end gap-2 pt-1">
+        <div className="flex justify-end pt-2">
           <Button
             type="submit"
-            disabled={isPending}
-            className="bg-brand hover:bg-brand-hover text-white gap-2 h-9"
+            disabled={createMutation.isPending || updateMutation.isPending}
+            className="bg-brand hover:bg-brand-hover text-white h-9 px-12"
           >
-            {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {mode === "create" ? "Create Tariff" : "Save Changes"}
+            {(createMutation.isPending || updateMutation.isPending) && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {isEditMode ? "Update Tariff" : "Create Tariff"}
           </Button>
         </div>
       </form>
     </Form>
+  );
+}
+
+function NumericField({ control, name, label, unit = "%" }: NumericFieldProps) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-xs font-medium">{label}</FormLabel>
+          <div className="relative">
+            <Input
+              type="number"
+              step="0.01"
+              className="h-9 pr-7"
+              {...field}
+              value={(field.value as number) ?? 0}
+              onChange={(e) =>
+                field.onChange(
+                  e.target.value === "" ? 0 : Number(e.target.value),
+                )
+              }
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-t4">
+              {unit}
+            </span>
+          </div>
+          <FormMessage className="text-[10px]" />
+        </FormItem>
+      )}
+    />
   );
 }

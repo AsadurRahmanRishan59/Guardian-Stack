@@ -88,7 +88,9 @@ function InfoRow({
     <div className="flex items-start gap-2.5">
       {icon && <div className="mt-0.5 shrink-0 text-t3">{icon}</div>}
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-t4 uppercase tracking-wide mb-0.5">{label}</p>
+        <p className="text-[10px] text-t4 uppercase tracking-wide mb-0.5">
+          {label}
+        </p>
         <div className="text-sm text-t1">{value}</div>
       </div>
     </div>
@@ -108,7 +110,9 @@ function RateMetric({
     <div className="p-2.5 rounded-gs border border-gs-line bg-surface-2/40 flex flex-col gap-1">
       <div className="flex items-center gap-1.5 text-t3">
         {icon}
-        <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide">
+          {label}
+        </span>
       </div>
       <p className="text-base font-bold text-t1">{formatRate(value)}</p>
     </div>
@@ -127,13 +131,12 @@ export function MotorTariffViewModal({
   }, [open, tariffKey]);
 
   const { data, isLoading, error } = useMotorTariffById(
-    queryEnabled ? tariffKey : undefined
+    queryEnabled ? tariffKey : undefined,
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[95vh] p-0 gap-0 overflow-hidden border-gs-line bg-surface-card">
-
         {/* ── Fixed header ── */}
         <DialogHeader className="px-4 pt-4 pb-3 border-b border-gs-line bg-surface-2/60">
           <div className="flex items-start gap-3">
@@ -173,7 +176,7 @@ export function MotorTariffViewModal({
                         "text-[10px] gap-1",
                         data.isActive
                           ? "bg-gs-green-bg text-gs-green border-transparent"
-                          : "bg-destructive/10 text-destructive border-destructive/20"
+                          : "bg-destructive/10 text-destructive border-destructive/20",
                       )}
                     >
                       {data.isActive ? (
@@ -217,7 +220,6 @@ export function MotorTariffViewModal({
             </div>
           ) : data ? (
             <div className="p-4 space-y-4">
-
               {/* ── Premium summary strip ── */}
               <div className="grid grid-cols-3 gap-3">
                 {[
@@ -290,7 +292,10 @@ export function MotorTariffViewModal({
                   <div className="space-y-3">
                     <InfoRow label="Tariff Type" value={data.tariffType} />
                     <Separator className="bg-gs-line" />
-                    <InfoRow label="Vehicle Group" value={data.groupOfVehicle} />
+                    <InfoRow
+                      label="Vehicle Group"
+                      value={data.groupOfVehicle}
+                    />
                     <Separator className="bg-gs-line" />
                     <InfoRow label="Vehicle Type" value={data.typeOfVehicle} />
                     <Separator className="bg-gs-line" />
@@ -303,31 +308,51 @@ export function MotorTariffViewModal({
                   icon={<Calendar className="h-3.5 w-3.5" />}
                 >
                   <div className="space-y-3">
+                    {/* Created Section */}
                     <InfoRow
                       icon={<Calendar className="w-3.5 h-3.5 text-gs-green" />}
-                      label="Created"
+                      label="Created Date"
                       value={
-                        <div>
-                          <p className="text-sm text-t1">{formatDate(data.createdAt)}</p>
-                          {data.createdBy && (
-                            <p className="text-[10px] text-t4">by {data.createdBy}</p>
-                          )}
-                        </div>
+                        <p className="text-sm text-t1">
+                          {formatDate(data.createdAt)}
+                        </p>
                       }
                     />
+                    {data.createdBy && (
+                      <InfoRow
+                        icon={<ShieldCheck className="w-3.5 h-3.5 text-t4" />}
+                        label="Created By"
+                        value={
+                          <p className="text-sm text-t1 font-medium">
+                            {data.createdBy}
+                          </p>
+                        }
+                      />
+                    )}
+
                     <Separator className="bg-gs-line" />
+
+                    {/* Updated Section */}
                     <InfoRow
                       icon={<Calendar className="w-3.5 h-3.5 text-t3" />}
-                      label="Last Updated"
+                      label="Last Updated Date"
                       value={
-                        <div>
-                          <p className="text-sm text-t1">{formatDate(data.updatedAt)}</p>
-                          {data.updatedBy && (
-                            <p className="text-[10px] text-t4">by {data.updatedBy}</p>
-                          )}
-                        </div>
+                        <p className="text-sm text-t1">
+                          {formatDate(data.updatedAt)}
+                        </p>
                       }
                     />
+                    {data.updatedBy && (
+                      <InfoRow
+                        icon={<ShieldCheck className="w-3.5 h-3.5 text-t4" />}
+                        label="Updated By"
+                        value={
+                          <p className="text-sm text-t1 font-medium">
+                            {data.updatedBy}
+                          </p>
+                        }
+                      />
+                    )}
                   </div>
                 </InfoCard>
               </div>
