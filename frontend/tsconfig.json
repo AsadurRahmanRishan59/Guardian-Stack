@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-  ],
+, "features/masteradmin/audit/motortariff/motortariff_audit_types.ts"  ],
   "exclude": ["node_modules"]
 }
