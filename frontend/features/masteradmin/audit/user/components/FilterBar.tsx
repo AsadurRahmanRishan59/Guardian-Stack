@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { X, ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react";
+import {
+  X, ChevronLeft, ChevronRight, CalendarIcon, SlidersHorizontal,
+  ChevronDown, ChevronUp,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuditFilterRequest } from "@/features/masteradmin/audit/user/user.types";
 import { useDebounce } from "@/lib/hooks/useDebounce";
@@ -112,11 +115,7 @@ function FilterInputs({
               value={local[key]}
               onChange={(e) => set(key, e.target.value)}
               placeholder={placeholder}
-              className={cn(
-                inputBase,
-                local[key] !== debounced && "border-brand/40",
-                width,
-              )}
+              className={cn(inputBase, local[key] !== debounced && "border-brand/40", width)}
             />
             {local[key] !== debounced && (
               <span className="absolute right-1.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
@@ -156,7 +155,6 @@ function FilterInputs({
           </div>
         ))}
 
-        {/* Quick presets */}
         <div className="flex gap-1">
           {[{ label: "Today", days: 0 }, { label: "7d", days: 7 }, { label: "30d", days: 30 }].map(({ label, days }) => (
             <button
@@ -182,6 +180,47 @@ function FilterInputs({
   );
 }
 
+// ─── Active filter pills — shown when panel is collapsed ─────────────────────
+
+function ActivePills({
+  filter,
+  onToggleRevType,
+}: {
+  filter:          AuditFilterRequest;
+  onToggleRevType: (t: string) => void;
+}) {
+  const pills: { label: string; onRemove?: () => void }[] = [];
+
+  if (filter.email)     pills.push({ label: `email: ${filter.email}` });
+  if (filter.changedBy) pills.push({ label: `by: ${filter.changedBy}` });
+  if (filter.ipAddress) pills.push({ label: `ip: ${filter.ipAddress}` });
+  if (filter.from || filter.to) pills.push({ label: "date range set" });
+  if (filter.revisionTypes)
+    filter.revisionTypes.split(",").filter(Boolean).forEach((t) =>
+      pills.push({ label: t, onRemove: () => onToggleRevType(t) })
+    );
+
+  if (pills.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5 px-4 pb-2">
+      {pills.map((p, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1 h-5 px-2 rounded-full border border-brand/30 bg-brand-soft text-[10px] font-body text-brand font-medium"
+        >
+          {p.label}
+          {p.onRemove && (
+            <button onClick={p.onRemove} className="hover:text-destructive transition-colors">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ─── FilterBar ────────────────────────────────────────────────────────────────
 
 interface FilterBarProps {
@@ -203,8 +242,9 @@ export function FilterBar({
   totalPages,
   onPageChange,
 }: FilterBarProps) {
-  const [resetKey,  setResetKey]  = useState(0);
-  const [isPending, setIsPending] = useState(false);
+  const [resetKey,    setResetKey]    = useState(0);
+  const [isPending,   setIsPending]   = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const handleClear = () => {
     setResetKey((k) => k + 1);
@@ -222,24 +262,45 @@ export function FilterBar({
   const currentPage    = filter.page ?? 0;
   const activeRevTypes = filter.revisionTypes?.split(",").filter(Boolean) ?? [];
 
+  // Count active filter groups for the badge number
+  const activeCount = [
+    filter.email,
+    filter.changedBy,
+    filter.ipAddress,
+    filter.from || filter.to,
+    filter.revisionTypes,
+  ].filter(Boolean).length;
+
   return (
-    <div className="flex flex-col gap-2 px-4 md:px-5 py-2.5 border-b border-gs-line bg-surface-card shrink-0">
-      <div className="flex flex-wrap items-start gap-2">
+    <div className="border-b border-gs-line bg-surface-card shrink-0">
 
-        <span className="text-[9px] font-bold tracking-widest uppercase text-t4 mt-2 hidden sm:block">
-          Filter
-        </span>
+      {/* ── Always-visible toolbar row ────────────────────────────────────── */}
+      <div className="flex items-center gap-2 px-4 md:px-5 py-2">
 
-        <div className="flex-1 min-w-0">
-          <FilterInputs
-            key={resetKey}
-            onUpdate={onUpdate}
-            onPendingChange={setIsPending}
-          />
-        </div>
+        {/* Collapsible toggle */}
+        <button
+          onClick={() => setFiltersOpen((v) => !v)}
+          className={cn(
+            "flex items-center gap-1.5 h-7 px-2.5 rounded-gs-sm border text-[11px] font-body font-semibold transition-colors",
+            filtersOpen || hasActiveFilters
+              ? "border-brand/40 bg-brand-soft text-brand"
+              : "border-gs-line text-t3 hover:border-gs-line-2 hover:text-t2",
+          )}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+          Filters
+          {activeCount > 0 && (
+            <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-brand text-white text-[9px] font-bold">
+              {activeCount}
+            </span>
+          )}
+          {filtersOpen
+            ? <ChevronUp   className="h-3 w-3 shrink-0" />
+            : <ChevronDown className="h-3 w-3 shrink-0" />}
+        </button>
 
-        {/* Rev-type toggles */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Rev-type toggles — always visible for quick access */}
+        <div className="flex gap-1 ml-1">
           {(["CREATED", "MODIFIED", "DELETED"] as const).map((type) => {
             const cfg    = REV_CFG[type];
             const active = activeRevTypes.includes(type);
@@ -248,7 +309,7 @@ export function FilterBar({
                 key={type}
                 onClick={() => toggleRevType(type)}
                 className={cn(
-                  "h-7 px-2.5 rounded-gs-sm border text-[10px] font-bold font-body tracking-wide transition-colors",
+                  "h-7 px-2 rounded-gs-sm border text-[10px] font-bold font-body tracking-wide transition-colors",
                   active ? cfg.activeClass : cfg.inactiveClass,
                 )}
               >
@@ -258,7 +319,6 @@ export function FilterBar({
           })}
         </div>
 
-        {/* Clear */}
         {(hasActiveFilters || isPending) && (
           <Button
             variant="ghost"
@@ -266,12 +326,11 @@ export function FilterBar({
             onClick={handleClear}
             className="h-7 px-2 text-xs font-body text-t3 hover:text-t1 hover:bg-surface-2"
           >
-            <X className="h-3 w-3 mr-1" />
-            Clear
+            <X className="h-3 w-3 mr-1" /> Clear
           </Button>
         )}
 
-        {/* Count + pagination */}
+        {/* Count + pagination pushed to right */}
         <div className="flex items-center gap-3 ml-auto">
           <span className="hidden sm:inline-flex items-center h-5 px-2 rounded-full bg-surface-3 border border-gs-line text-[10px] font-body text-t3">
             {totalElements.toLocaleString()} events
@@ -280,8 +339,7 @@ export function FilterBar({
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
               <Button
-                variant="outline"
-                size="icon"
+                variant="outline" size="icon"
                 className="h-6 w-6 border-gs-line text-t3 hover:text-t1 hover:bg-surface-2"
                 onClick={() => onPageChange(currentPage - 1)}
                 disabled={currentPage === 0}
@@ -292,8 +350,7 @@ export function FilterBar({
                 {currentPage + 1} / {totalPages}
               </span>
               <Button
-                variant="outline"
-                size="icon"
+                variant="outline" size="icon"
                 className="h-6 w-6 border-gs-line text-t3 hover:text-t1 hover:bg-surface-2"
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={currentPage >= totalPages - 1}
@@ -305,6 +362,23 @@ export function FilterBar({
         </div>
 
       </div>
+
+      {/* ── Expanded filter panel ──────────────────────────────────────────── */}
+      {filtersOpen && (
+        <div className="px-4 md:px-5 pb-3 pt-1 border-t border-gs-line/50">
+          <FilterInputs
+            key={resetKey}
+            onUpdate={onUpdate}
+            onPendingChange={setIsPending}
+          />
+        </div>
+      )}
+
+      {/* ── Active pills — visible only when collapsed ─────────────────────── */}
+      {!filtersOpen && hasActiveFilters && (
+        <ActivePills filter={filter} onToggleRevType={toggleRevType} />
+      )}
+
     </div>
   );
 }
