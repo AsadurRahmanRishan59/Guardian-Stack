@@ -62,7 +62,7 @@ export default function AuditMotorTariffPage() {
     <div className="flex h-screen flex-col bg-surface font-body overflow-hidden">
 
       <TopBar isFetching={isFetching && !isLoading} />
-      <StatsStrip stats={stats} />
+      <StatsStrip stats={stats} pageSize={PAGE_SIZE} />
       <FilterBar
         filter={filter}
         onUpdate={updateFilter}
