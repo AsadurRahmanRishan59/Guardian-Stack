@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ScrollText, LogIn, Receipt } from "lucide-react";
+import { ScrollText, LogIn, Receipt, ShieldEllipsis } from "lucide-react";
 
 const modules = [
   {
@@ -15,9 +15,9 @@ const modules = [
     badge:       null,
   },
   {
-    title:       "Login Log",
-    icon:        LogIn,
-    href:        "/admin/audit/login-log",
+    title:       "Security Log",
+    icon:        ShieldEllipsis,
+    href:        "/admin/audit/security-log",
     description: "Authentication events: successful logins, failures, OTP verifications, and token refreshes.",
     badge:       null,
   },

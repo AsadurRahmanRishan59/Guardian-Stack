@@ -8,6 +8,7 @@ import {
   FileText, Settings2, BarChart3,
   UserPlus, Users,
   ScrollText, LogIn,
+  ShieldEllipsis,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -152,7 +153,7 @@ export const navigationConfig: NavigationSection[] = [
         roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
         items: [
           { title: "User Log",          url: "/admin/audit/user-log",                icon: ScrollText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-          { title: "Security Log",         url: "/admin/audit/security-log",               icon: LogIn,      roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+          { title: "Security Log",         url: "/admin/audit/security-log",               icon: ShieldEllipsis,      roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
           {
             title: "Tariff",
             url: "/admin/audit/tariff",
