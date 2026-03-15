@@ -24,6 +24,12 @@ public class AuditDbWriter {
                     .userId(entry.getUserId())
                     .ipAddress(entry.getSourceIp())
                     .userAgent(entry.getUserAgent())
+                    // AuditLogEntry.getRequestId() comes from AuditContext.getRequestId(),
+                    // which is populated per-request by AuditContextFilter (UUID v4).
+                    // This ties the DB row to the ELK trace.id and the X-Request-ID
+                    // response header — giving a single correlation handle across all
+                    // three observability layers.
+                    .requestId(entry.getRequestId())
                     .success("success".equals(entry.getOutcome()))
                     .additionalInfo(entry.getMessage())
                     .failureReason("failure".equals(entry.getOutcome()) ? entry.getMessage() : null)

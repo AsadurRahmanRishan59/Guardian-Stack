@@ -152,7 +152,7 @@ export const navigationConfig: NavigationSection[] = [
         roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN],
         items: [
           { title: "User Log",          url: "/admin/audit/user-log",                icon: ScrollText, roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
-          { title: "Login Log",         url: "/admin/audit/login-log",               icon: LogIn,      roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
+          { title: "Security Log",         url: "/admin/audit/security-log",               icon: LogIn,      roles: [AppRole.MASTER_ADMIN, AppRole.ADMIN] },
           {
             title: "Tariff",
             url: "/admin/audit/tariff",

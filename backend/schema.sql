@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS public.gs_auth_audit_logs
     -- Request Details
     ip_address      VARCHAR(45)   NULL,
     user_agent      VARCHAR(500)  NULL,
+    request_id      VARCHAR(64)   NULL,
 
     -- Result
     success         BOOLEAN       NOT NULL DEFAULT FALSE,
@@ -340,6 +341,12 @@ CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_success
 CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_ip_address
     ON public.gs_auth_audit_logs (ip_address);
 
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_request_id
+    ON public.gs_auth_audit_logs (request_id)
+    WHERE request_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_gs_auth_audit_logs_timestamp
+    ON public.gs_auth_audit_logs (timestamp DESC);
 -- =============================================================================
 -- STEP 7: PERMISSIONS FOR APPLICATION USER
 -- =============================================================================

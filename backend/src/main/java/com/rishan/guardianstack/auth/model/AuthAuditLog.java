@@ -20,7 +20,7 @@ public class AuthAuditLog {
     private Long id;
 
     @Column(name = "event_type", nullable = false, length = 50)
-    private String eventType; // LOGIN, LOGOUT, PASSWORD_RESET, etc.
+    private String eventType;
 
     @Column(name = "user_email", length = 255)
     private String userEmail;
@@ -33,6 +33,19 @@ public class AuthAuditLog {
 
     @Column(name = "user_agent", length = 500)
     private String userAgent;
+
+    /**
+     * Correlation ID captured by AuditContextFilter from the incoming HTTP request.
+     * Stored as the X-Request-ID header value (UUID format).
+     * Allows cross-referencing a DB row against the ELK trace.id field and
+     * the X-Request-ID response header visible in browser dev-tools.
+     *
+     * Source: AuditContext.AuditMetadata.getRequestId()
+     *         → AuditLogEntry.requestId  (@JsonProperty("trace.id"))
+     *         → AuditDbWriter (new)
+     */
+    @Column(name = "request_id", length = 64)
+    private String requestId;
 
     @Column(name = "success", nullable = false)
     private boolean success;
