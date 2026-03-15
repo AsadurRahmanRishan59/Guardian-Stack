@@ -60,7 +60,7 @@ export default function AuditIndexPage() {
                   hover:shadow-[0_4px_20px_rgba(232,92,13,0.10)]
                   hover:-translate-y-0.5
                 ">
-                  <div className="absolute inset-x-0 top-0 h-[2px] bg-brand rounded-t-gs opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  <div className="absolute inset-x-0 top-0 h-0.5 bg-brand rounded-t-gs opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
 
                   <div className="flex items-start justify-between mb-4">
                     <div className="w-10 h-10 rounded-gs-sm bg-brand-soft border border-brand-border flex items-center justify-center">
